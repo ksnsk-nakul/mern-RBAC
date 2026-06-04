@@ -1,0 +1,68 @@
+import { useState } from 'react'
+import type { LoginConfig } from '../LoginPage'
+import { Button } from '@/components/ui/button'
+import { Input }  from '@/components/ui/input'
+import { Label }  from '@/components/ui/label'
+
+interface Props {
+  config:     LoginConfig
+  onSubmit:   (email: string, password: string) => void
+  error:      string
+  submitting: boolean
+}
+
+export function SplitLogin({ config, onSubmit, error, submitting }: Props) {
+  const [email,    setEmail]    = useState('')
+  const [password, setPassword] = useState('')
+
+  const panelStyle = config.bgImage
+    ? { backgroundImage: `url(${config.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : { backgroundColor: config.roleColor }
+
+  return (
+    <div className="flex min-h-screen">
+      <div className="hidden w-1/2 flex-col items-center justify-center p-12 text-white lg:flex" style={panelStyle}>
+        {config.logoUrl && (
+          <img src={config.logoUrl} alt="Logo" className="mb-8 h-12 object-contain brightness-0 invert" />
+        )}
+        <h1 className="text-4xl font-bold">{config.brandTitle}</h1>
+        {config.brandSubtitle && (
+          <p className="mt-3 text-lg opacity-80">{config.brandSubtitle}</p>
+        )}
+      </div>
+
+      <div className="flex w-full flex-col items-center justify-center p-8 lg:w-1/2">
+        <div className="w-full max-w-sm space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold">Welcome back</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Sign in to continue</p>
+          </div>
+
+          <form onSubmit={(e) => { e.preventDefault(); onSubmit(email, password) }} className="space-y-4">
+            <div className="space-y-1">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="password">Password</Label>
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? 'Signing in…' : 'Sign in'}
+            </Button>
+          </form>
+
+          {config.googleAuthEnabled && (
+            <a
+              href={`/api/auth/google/redirect?roleRoute=${config.roleRoute}`}
+              className="flex w-full items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm hover:bg-accent"
+            >
+              Continue with Google
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
