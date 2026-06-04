@@ -2,6 +2,7 @@ import express from 'express'
 import helmet from 'helmet'
 import cookieParser from 'cookie-parser'
 import morgan from 'morgan'
+import { passport } from './lib/passport.js'
 import { router } from './routes/index.js'
 import { errorHandler } from './middleware/errorHandler.js'
 
@@ -12,6 +13,7 @@ export function createApp() {
   app.use(cookieParser())
   app.use(express.json())
   app.use(morgan('dev'))
+  app.use(passport.initialize())
 
   app.use('/api', router)
 
