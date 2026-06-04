@@ -1,0 +1,13 @@
+{
+  "name": "rbac-mern",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["client", "server"],
+  "scripts": {
+    "dev": "docker compose up --build",
+    "dev:server": "npm --workspace=server run dev",
+    "dev:client": "npm --workspace=client run dev",
+    "seed": "npm --workspace=server run seed"
+  },
+  "engines": { "node": ">=24.0.0" }
+}
