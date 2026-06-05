@@ -6,10 +6,11 @@ export function authorize(permission: string) {
     if (!req.user) {
       return next(new AuthError())
     }
-    if (req.user.permissions.includes('*')) {
+    const userClaim = req.user as unknown as { userId: string; roleId: string; permissions: string[] }
+    if (userClaim.permissions.includes('*')) {
       return next()
     }
-    if (!req.user.permissions.includes(permission)) {
+    if (!userClaim.permissions.includes(permission)) {
       return next(new ForbiddenError(`Missing permission: ${permission}`))
     }
     next()

@@ -58,14 +58,15 @@ export const loginConfig = asyncHandler(async (req: Request, res: Response) => {
 export const me = asyncHandler(async (req: Request, res: Response) => {
   const { User } = await import('../models/User.js')
   const { Role } = await import('../models/Role.js')
-  const user = await User.findById(req.user!.userId).select('-password')
+  const userClaim = req.user as unknown as { userId: string; roleId: string; permissions: string[] }
+  const user = await User.findById(userClaim.userId).select('-password')
   if (!user) { res.status(404).json({ error: 'User not found' }); return }
 
-  const role = await Role.findById(req.user!.roleId)
+  const role = await Role.findById(userClaim.roleId)
 
   res.json({
     user:        { id: String(user._id), name: user.name, email: user.email, avatarUrl: user.avatarUrl, isFounder: user.isFounder },
     role:        role ? { name: role.name, slug: role.slug, route: role.route, color: role.color } : null,
-    permissions: req.user!.permissions,
+    permissions: userClaim.permissions,
   })
 })

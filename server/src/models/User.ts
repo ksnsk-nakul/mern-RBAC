@@ -10,6 +10,9 @@ export interface IUser extends Document {
   emailVerifiedAt?: Date
   currentOrganization?: mongoose.Types.ObjectId
   deletedAt?: Date
+  userId?: mongoose.Types.ObjectId
+  roleId?: mongoose.Types.ObjectId
+  permissions?: string[]
 }
 
 const schema = new mongoose.Schema<IUser>(
