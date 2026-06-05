@@ -17,10 +17,12 @@ export interface AuthResult {
 }
 
 async function resolvePermissions(roleId: mongoose.Types.ObjectId): Promise<string[]> {
-  const role = await Role.findById(roleId)
+  const role = await Role.findById(roleId).populate<{
+    permissions: Array<{ slug: string }>
+  }>('permissions')
   if (!role) return []
   if (role.slug === 'super_admin') return ['*']
-  return []
+  return role.permissions.map((p) => p.slug)
 }
 
 export async function loginWithRole(

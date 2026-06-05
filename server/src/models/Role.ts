@@ -10,6 +10,7 @@ export interface IRole extends Document {
   isProtected: boolean
   mfaRequired: boolean
   requireIpAllowlist: boolean
+  permissions: mongoose.Types.ObjectId[]
 }
 
 const schema = new mongoose.Schema<IRole>(
@@ -23,6 +24,7 @@ const schema = new mongoose.Schema<IRole>(
     isProtected:        { type: Boolean, default: false },
     mfaRequired:        { type: Boolean, default: false },
     requireIpAllowlist: { type: Boolean, default: false },
+    permissions:        [{ type: mongoose.Schema.Types.ObjectId, ref: 'Permission' }],
   },
   { timestamps: true },
 )

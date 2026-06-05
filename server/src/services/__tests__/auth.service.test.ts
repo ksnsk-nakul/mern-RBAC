@@ -26,7 +26,9 @@ vi.mock('../../models/User.js', () => ({
   User: { findOne: vi.fn() },
 }))
 vi.mock('../../models/Role.js', () => ({
-  Role: { findById: vi.fn() },
+  Role: {
+    findById: vi.fn().mockReturnValue({ populate: vi.fn() }),
+  },
 }))
 vi.mock('../../models/UserRole.js', () => ({
   UserRole: { findOne: vi.fn() },
@@ -53,11 +55,12 @@ const mockRoleId = new mongoose.Types.ObjectId()
 const mockUserId = new mongoose.Types.ObjectId()
 
 const mockRole = {
-  _id:   mockRoleId,
-  name:  'Super Admin',
-  slug:  'super_admin',
-  route: 'admin',
-  color: '#6366f1',
+  _id:         mockRoleId,
+  name:        'Super Admin',
+  slug:        'super_admin',
+  route:       'admin',
+  color:       '#6366f1',
+  permissions: [],
 }
 
 async function makeUser(overrides = {}) {
@@ -82,7 +85,7 @@ describe('loginWithRole', () => {
     const user = await makeUser()
     vi.mocked(User.findOne).mockResolvedValue(user as any)
     vi.mocked(UserRole.findOne).mockResolvedValue({ userId: mockUserId, roleId: mockRoleId } as any)
-    vi.mocked(Role.findById).mockResolvedValue(mockRole as any)
+    vi.mocked(Role.findById).mockReturnValue({ populate: vi.fn().mockResolvedValue(mockRole) } as any)
     vi.mocked(RefreshToken.create).mockResolvedValue({} as any)
 
     const result = await loginWithRole('test@example.com', 'secret123', mockRole as any)
@@ -130,7 +133,7 @@ describe('loginWithRole', () => {
     const user = await makeUser()
     vi.mocked(User.findOne).mockResolvedValue(user as any)
     vi.mocked(UserRole.findOne).mockResolvedValue({ userId: mockUserId, roleId: mockRoleId } as any)
-    vi.mocked(Role.findById).mockResolvedValue(mockRole as any)
+    vi.mocked(Role.findById).mockReturnValue({ populate: vi.fn().mockResolvedValue(mockRole) } as any)
     vi.mocked(RefreshToken.create).mockResolvedValue({} as any)
 
     await loginWithRole('test@example.com', 'secret123', mockRole as any)
@@ -149,7 +152,7 @@ describe('refreshTokens', () => {
     const stored = { tokenHash: hashToken(raw), userId: mockUserId, deleteOne: vi.fn() }
 
     vi.mocked(RefreshToken.findOne).mockResolvedValue(stored as any)
-    vi.mocked(Role.findById).mockResolvedValue(mockRole as any)
+    vi.mocked(Role.findById).mockReturnValue({ populate: vi.fn().mockResolvedValue(mockRole) } as any)
     vi.mocked(RefreshToken.create).mockResolvedValue({} as any)
 
     const result = await refreshTokens(raw)
