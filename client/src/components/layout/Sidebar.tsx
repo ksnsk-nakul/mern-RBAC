@@ -19,12 +19,14 @@ const userNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { label: 'Dashboard',     to: '/admin' },
-  { label: 'Users',         to: '/admin/users',       permission: 'users.view' },
-  { label: 'Roles',         to: '/admin/roles',       permission: 'roles.manage' },
-  { label: 'Permissions',   to: '/admin/permissions', permission: 'permissions.view' },
-  { label: 'Activity Logs', to: '/admin/logs',        permission: 'logs.view' },
-  { label: 'Support',       to: '/admin/tickets',     permission: 'tickets.view' },
-  { label: 'Settings',      to: '/admin/settings',    permission: 'settings.view' },
+  { label: 'Users',         to: '/admin/users',                permission: 'users.view' },
+  { label: 'Roles',         to: '/admin/roles',                permission: 'roles.manage' },
+  { label: 'Permissions',   to: '/admin/permissions',          permission: 'permissions.view' },
+  { label: 'Activity Logs', to: '/admin/logs',                 permission: 'logs.view' },
+  { label: 'Support',       to: '/admin/tickets',              permission: 'tickets.view' },
+  { label: 'Settings',      to: '/admin/settings',             permission: 'settings.view' },
+  { label: 'Login Pages',   to: '/admin/settings/login-pages', permission: 'settings.manage' },
+  { label: 'Secrets',       to: '/admin/settings/secrets' },
 ]
 
 const subadminNav: NavItem[] = [

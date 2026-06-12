@@ -1,12 +1,15 @@
 import { Router } from 'express'
-import { globalLimiter }          from '../middleware/rateLimiter.js'
-import { authRouter }             from './auth.js'
-import { googleAuthRouter }       from './googleAuth.js'
-import { usersAdminRouter }       from './admin/users.js'
-import { rolesAdminRouter }       from './admin/roles.js'
-import { permissionsAdminRouter } from './admin/permissions.js'
-import { userRolesAdminRouter }   from './admin/userRoles.js'
-import { statsAdminRouter }       from './admin/stats.js'
+import { globalLimiter }           from '../middleware/rateLimiter.js'
+import { authRouter }              from './auth.js'
+import { googleAuthRouter }        from './googleAuth.js'
+import { usersAdminRouter }        from './admin/users.js'
+import { rolesAdminRouter }        from './admin/roles.js'
+import { permissionsAdminRouter }  from './admin/permissions.js'
+import { userRolesAdminRouter }    from './admin/userRoles.js'
+import { statsAdminRouter }        from './admin/stats.js'
+import { settingsAdminRouter }     from './admin/settings.js'
+import { loginConfigsAdminRouter }  from './admin/loginConfigs.js'
+import { secretsAdminRouter }       from './admin/secrets.js'
 
 export const router = Router()
 
@@ -22,3 +25,6 @@ router.use('/admin/users/:userId/roles', userRolesAdminRouter)
 router.use('/admin/roles',               rolesAdminRouter)
 router.use('/admin/permissions',         permissionsAdminRouter)
 router.use('/admin/stats',               statsAdminRouter)
+router.use('/admin/settings',            settingsAdminRouter)
+router.use('/admin/login-configs',       loginConfigsAdminRouter)
+router.use('/admin/secrets',             secretsAdminRouter)
