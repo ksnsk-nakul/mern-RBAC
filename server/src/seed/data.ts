@@ -23,6 +23,8 @@ export const CORE_PERMISSIONS = [
   { name: 'Manage Tickets',          slug: 'tickets.manage',          mainGroup: 'Support' },
   { name: 'Manage TMS Projects',     slug: 'tms.projects.manage',     mainGroup: 'TMS' },
   { name: 'Manage Products',         slug: 'tms.products.manage',     mainGroup: 'TMS' },
+  { name: 'View API Tokens',   slug: 'security.tokens.view',   mainGroup: 'Security' },
+  { name: 'Manage API Tokens', slug: 'security.tokens.manage', mainGroup: 'Security' },
 ] as const
 
 export const CORE_SETTINGS = [
