@@ -10,9 +10,6 @@ export interface IUser extends Document {
   emailVerifiedAt?: Date
   currentOrganization?: mongoose.Types.ObjectId
   deletedAt?: Date
-  userId?: mongoose.Types.ObjectId
-  roleId?: mongoose.Types.ObjectId
-  permissions?: string[]
   mfaEnabled:       boolean
   mfaTotpSecret?:   string
   mfaRecoveryCodes: string[]
@@ -30,8 +27,8 @@ const schema = new mongoose.Schema<IUser>(
     currentOrganization: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
     deletedAt:           { type: Date },
     mfaEnabled:       { type: Boolean, default: false },
-    mfaTotpSecret:    { type: String },
-    mfaRecoveryCodes: { type: [String], default: [] },
+    mfaTotpSecret:    { type: String, select: false },
+    mfaRecoveryCodes: { type: [String], default: [], select: false },
   },
   { timestamps: true },
 )

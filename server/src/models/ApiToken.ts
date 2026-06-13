@@ -25,7 +25,7 @@ const schema = new mongoose.Schema<IApiToken>(
   { timestamps: true },
 )
 
-schema.index({ userId: 1 })
 schema.index({ tokenHash: 1 })
+schema.index({ userId: 1, revokedAt: 1 })
 
 export const ApiToken: Model<IApiToken> = mongoose.model('ApiToken', schema)

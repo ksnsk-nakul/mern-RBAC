@@ -21,8 +21,7 @@ const schema = new mongoose.Schema<ITrustedDevice>(
   { timestamps: true },
 )
 
-schema.index({ userId: 1 })
-schema.index({ deviceHash: 1 })
+schema.index({ userId: 1, deviceHash: 1 }, { unique: true })
 schema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
 
 export const TrustedDevice: Model<ITrustedDevice> = mongoose.model('TrustedDevice', schema)
