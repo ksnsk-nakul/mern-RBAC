@@ -4,8 +4,10 @@ import { User } from '../models/User.js'
 import { Role } from '../models/Role.js'
 import { UserRole } from '../models/UserRole.js'
 import { RefreshToken } from '../models/RefreshToken.js'
+import { TrustedDevice } from '../models/TrustedDevice.js'
 import { AuthError, ForbiddenError } from '../lib/errors.js'
 import { signAccessToken, signRefreshToken, verifyRefreshToken, hashToken, REFRESH_TTL_MS } from '../lib/jwt.js'
+import { verifyTotp, useRecoveryCode } from './mfa.service.js'
 import type { IRole } from '../models/Role.js'
 
 export interface AuthResult {
@@ -15,6 +17,10 @@ export interface AuthResult {
   refreshToken: string
   redirectTo:   string
 }
+
+export type LoginWithRoleResult =
+  | { status: 'ok';           auth: AuthResult }
+  | { status: 'mfa_required' }
 
 async function resolvePermissions(roleId: mongoose.Types.ObjectId): Promise<string[]> {
   const role = await Role.findById(roleId).populate<{
@@ -29,8 +35,9 @@ export async function loginWithRole(
   email: string,
   password: string,
   role: IRole & { _id: mongoose.Types.ObjectId },
-): Promise<AuthResult> {
-  const user = await User.findOne({ email: email.toLowerCase(), deletedAt: null })
+  options: { totpCode?: string; recoveryCode?: string; deviceFingerprint?: string } = {},
+): Promise<LoginWithRoleResult> {
+  const user = await User.findOne({ email: email.toLowerCase(), deletedAt: null }).select('+mfaTotpSecret')
   if (!user) throw new AuthError('Invalid credentials')
 
   if (!user.password) throw new AuthError('Use Google login for this account')
@@ -40,6 +47,28 @@ export async function loginWithRole(
 
   const userRole = await UserRole.findOne({ userId: user._id, roleId: role._id, isActive: true })
   if (!userRole) throw new ForbiddenError('You do not have access to this portal')
+
+  // MFA check
+  if (role.mfaRequired && user.mfaEnabled) {
+    const trusted = options.deviceFingerprint
+      ? !!(await TrustedDevice.findOne({
+          userId:     user._id,
+          deviceHash: options.deviceFingerprint,
+          expiresAt:  { $gt: new Date() },
+        }))
+      : false
+
+    if (!trusted) {
+      if (options.recoveryCode) {
+        await useRecoveryCode(user._id as mongoose.Types.ObjectId, options.recoveryCode)
+      } else if (options.totpCode) {
+        const valid = verifyTotp(user.mfaTotpSecret!, options.totpCode)
+        if (!valid) throw new AuthError('Invalid TOTP code')
+      } else {
+        return { status: 'mfa_required' }
+      }
+    }
+  }
 
   const permissions = await resolvePermissions(role._id)
 
@@ -53,11 +82,14 @@ export async function loginWithRole(
   })
 
   return {
-    user:        { id: String(user._id), name: user.name, email: user.email, avatarUrl: user.avatarUrl, isFounder: user.isFounder },
-    role:        { name: role.name, slug: role.slug, route: role.route, color: role.color },
-    accessToken,
-    refreshToken,
-    redirectTo:  `/${role.route}`,
+    status: 'ok',
+    auth: {
+      user:       { id: String(user._id), name: user.name, email: user.email, avatarUrl: user.avatarUrl, isFounder: user.isFounder },
+      role:       { name: role.name, slug: role.slug, route: role.route, color: role.color },
+      accessToken,
+      refreshToken,
+      redirectTo: `/${role.route}`,
+    },
   }
 }
 

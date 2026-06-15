@@ -10,6 +10,7 @@ import { statsAdminRouter }        from './admin/stats.js'
 import { settingsAdminRouter }     from './admin/settings.js'
 import { loginConfigsAdminRouter }  from './admin/loginConfigs.js'
 import { secretsAdminRouter }       from './admin/secrets.js'
+import { mfaRouter }                from './mfa.js'
 
 export const router = Router()
 
@@ -19,6 +20,7 @@ router.get('/health', (_req, res) => { res.json({ status: 'ok' }) })
 
 router.use('/auth',        authRouter)
 router.use('/auth/google', googleAuthRouter)
+router.use('/auth/mfa',    mfaRouter)
 
 router.use('/admin/users',               usersAdminRouter)
 router.use('/admin/users/:userId/roles', userRolesAdminRouter)

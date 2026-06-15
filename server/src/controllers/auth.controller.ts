@@ -1,22 +1,38 @@
 import type { Request, Response } from 'express'
+import crypto from 'crypto'
 import { asyncHandler } from '../lib/errors.js'
 import * as AuthService from '../services/auth.service.js'
 import { setAuthCookies, clearAuthCookies } from '../lib/cookies.js'
 import { z } from 'zod'
 
 const loginSchema = z.object({
-  email:    z.string().email(),
-  password: z.string().min(1),
+  email:        z.string().email(),
+  password:     z.string().min(1),
+  totpCode:     z.string().optional(),
+  recoveryCode: z.string().optional(),
 })
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password } = loginSchema.parse(req.body)
+  const { email, password, totpCode, recoveryCode } = loginSchema.parse(req.body)
   const role = req.portal!.role
 
-  const result = await AuthService.loginWithRole(email, password, role)
+  const userAgent = req.headers['user-agent'] ?? ''
+  const ip        = (req.ip ?? '').replace('::ffff:', '')
+  const deviceFingerprint = crypto.createHash('sha256').update(`${userAgent}:${ip}`).digest('hex')
 
-  setAuthCookies(res, result.accessToken, result.refreshToken)
-  res.json({ user: result.user, role: result.role, redirectTo: result.redirectTo })
+  const result = await AuthService.loginWithRole(email, password, role, {
+    totpCode,
+    recoveryCode,
+    deviceFingerprint,
+  })
+
+  if (result.status === 'mfa_required') {
+    res.json({ mfaRequired: true })
+    return
+  }
+
+  setAuthCookies(res, result.auth.accessToken, result.auth.refreshToken)
+  res.json({ user: result.auth.user, role: result.auth.role, redirectTo: result.auth.redirectTo })
 })
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {

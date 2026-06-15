@@ -21,10 +21,24 @@ vi.mock('../../config/env.js', () => ({
   },
 }))
 
-// Mock Mongoose models
-vi.mock('../../models/User.js', () => ({
-  User: { findOne: vi.fn() },
-}))
+// Mock Mongoose models — findOne returns a chainable query object with .select()
+vi.mock('../../models/User.js', () => {
+  const findOneMock = vi.fn()
+  // Wrap mockResolvedValue/mockReturnValue so .select() is chainable
+  const proxied = new Proxy(findOneMock, {
+    apply(target, thisArg, args) {
+      const base = target.apply(thisArg, args)
+      if (base && typeof base.then === 'function') {
+        // Already a promise — wrap with .select() that resolves the same value
+        const chainable: any = base
+        chainable.select = () => base
+        return chainable
+      }
+      return base
+    },
+  })
+  return { User: { findOne: proxied } }
+})
 vi.mock('../../models/Role.js', () => ({
   Role: {
     findById: vi.fn().mockReturnValue({ populate: vi.fn() }),
@@ -90,11 +104,13 @@ describe('loginWithRole', () => {
 
     const result = await loginWithRole('test@example.com', 'secret123', mockRole as any)
 
-    expect(result.user.email).toBe('test@example.com')
-    expect(result.role.slug).toBe('super_admin')
-    expect(result.redirectTo).toBe('/admin')
-    expect(typeof result.accessToken).toBe('string')
-    expect(typeof result.refreshToken).toBe('string')
+    expect(result.status).toBe('ok')
+    if (result.status !== 'ok') throw new Error('Expected ok status')
+    expect(result.auth.user.email).toBe('test@example.com')
+    expect(result.auth.role.slug).toBe('super_admin')
+    expect(result.auth.redirectTo).toBe('/admin')
+    expect(typeof result.auth.accessToken).toBe('string')
+    expect(typeof result.auth.refreshToken).toBe('string')
   })
 
   it('throws AuthError for unknown email', async () => {
