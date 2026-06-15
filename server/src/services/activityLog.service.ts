@@ -55,9 +55,10 @@ export async function listActivity(opts: {
   const filter: Record<string, unknown> = {}
   if (opts.action) filter.action = opts.action
   if (opts.from || opts.to) {
-    filter.createdAt = {}
-    if (opts.from) (filter.createdAt as any).$gte = opts.from
-    if (opts.to)   (filter.createdAt as any).$lte = opts.to
+    const dateFilter: Record<string, Date> = {}
+    if (opts.from) dateFilter.$gte = opts.from
+    if (opts.to)   dateFilter.$lte = opts.to
+    filter.createdAt = dateFilter
   }
 
   const [docs, total] = await Promise.all([
@@ -116,9 +117,10 @@ export async function exportLogs(opts: {
 }): Promise<ActivityLogItem[]> {
   const filter: Record<string, unknown> = {}
   if (opts.from || opts.to) {
-    filter.createdAt = {}
-    if (opts.from) (filter.createdAt as any).$gte = opts.from
-    if (opts.to)   (filter.createdAt as any).$lte = opts.to
+    const dateFilter: Record<string, Date> = {}
+    if (opts.from) dateFilter.$gte = opts.from
+    if (opts.to)   dateFilter.$lte = opts.to
+    filter.createdAt = dateFilter
   }
 
   const docs = await ActivityLog.find(filter)

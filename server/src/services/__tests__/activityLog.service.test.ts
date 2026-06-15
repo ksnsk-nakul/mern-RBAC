@@ -38,7 +38,7 @@ vi.mock('../../models/ActivityLog.js', () => ({
 
 import crypto from 'crypto'
 import { ActivityLog } from '../../models/ActivityLog.js'
-import { appendActivity, listActivity, verifyChain } from '../activityLog.service.js'
+import { appendActivity, listActivity, verifyChain, exportLogs } from '../activityLog.service.js'
 
 function hashContent(content: object): string {
   return crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex')
@@ -160,6 +160,47 @@ describe('verifyChain', () => {
 
     const result = await verifyChain()
     expect(result.valid).toBe(false)
-    expect(result.brokenAt).toBeDefined()
+    expect(result.brokenAt).toBe(1)
+  })
+
+  it('returns valid:false when prevHash field is tampered (chain link altered)', async () => {
+    const correctHash = hashContent({ action: 'user.created', prevHash: 'genesis' })
+    // Record 1 is fine, but record 2 has prevHash altered to a wrong value
+    // while record 2's own hash field still reflects the *original* chain
+    const records = [
+      { action: 'user.created', prevHash: 'genesis',   hash: correctHash },
+      { action: 'role.updated', prevHash: 'WRONG_PREV', hash: hashContent({ action: 'role.updated', prevHash: correctHash }) },
+    ]
+    mockFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(records) }),
+    })
+
+    const result = await verifyChain()
+    expect(result.valid).toBe(false)
+    expect(result.brokenAt).toBe(1)
+  })
+})
+
+describe('exportLogs', () => {
+  it('returns mapped log items up to limit', async () => {
+    const fakeDoc = {
+      _id:       'doc1',
+      action:    'user.created',
+      actorEmail: 'a@b.com',
+      hash:      'h1',
+      prevHash:  'genesis',
+      createdAt: new Date('2025-01-01T00:00:00Z'),
+    }
+    mockFind.mockReturnValue({
+      sort:  vi.fn().mockReturnValue({
+        limit: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([fakeDoc]) }),
+      }),
+    })
+
+    const result = await exportLogs({})
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.action).toBe('user.created')
+    expect(result[0]!.createdAt).toBe('2025-01-01T00:00:00.000Z')
   })
 })
