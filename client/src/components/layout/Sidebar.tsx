@@ -15,6 +15,7 @@ const userNav: NavItem[] = [
   { label: 'Projects',  to: '/dashboard/projects' },
   { label: 'Tasks',     to: '/dashboard/tasks' },
   { label: 'AI Assistant', to: '/dashboard/ai' },
+  { label: 'Security', to: '/dashboard/security' },
 ]
 
 const adminNav: NavItem[] = [
