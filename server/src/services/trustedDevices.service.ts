@@ -64,6 +64,7 @@ export async function listDevices(userId: mongoose.Types.ObjectId): Promise<Devi
 }
 
 export async function revokeDevice(userId: mongoose.Types.ObjectId, deviceId: string): Promise<void> {
+  if (!mongoose.Types.ObjectId.isValid(deviceId)) throw new NotFoundError('Device not found')
   const result = await TrustedDevice.deleteOne({
     _id:    new mongoose.Types.ObjectId(deviceId),
     userId,
