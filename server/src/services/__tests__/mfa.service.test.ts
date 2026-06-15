@@ -46,6 +46,7 @@ import {
   disableMfa,
   verifyTotp,
   useRecoveryCode,
+  regenerateRecoveryCodes,
   getMfaStatus,
 } from '../mfa.service.js'
 import { NotFoundError, AppError } from '../../lib/errors.js'
@@ -186,5 +187,31 @@ describe('getMfaStatus', () => {
 
     const result = await getMfaStatus(userId)
     expect(result).toEqual({ enabled: true, codesRemaining: 3 })
+  })
+})
+
+describe('regenerateRecoveryCodes', () => {
+  it('throws if MFA not enabled', async () => {
+    mockFindById(makeUser({ mfaEnabled: false }))
+    await expect(regenerateRecoveryCodes(userId, '123456')).rejects.toThrow(AppError)
+  })
+
+  it('throws on invalid TOTP', async () => {
+    mockFindById(makeUser({ mfaEnabled: true, mfaTotpSecret: 'SECRET' }))
+    vi.mocked(speakeasy.totp.verify).mockReturnValue(false)
+    await expect(regenerateRecoveryCodes(userId, '000000')).rejects.toThrow(AppError)
+  })
+
+  it('replaces all recovery code hashes and returns 8 raw codes', async () => {
+    const user = makeUser({ mfaEnabled: true, mfaTotpSecret: 'SECRET', mfaRecoveryCodes: ['oldhash'] })
+    mockFindById(user)
+    vi.mocked(speakeasy.totp.verify).mockReturnValue(true)
+
+    const raw = await regenerateRecoveryCodes(userId, '123456')
+
+    expect(raw).toHaveLength(8)
+    expect(user.mfaRecoveryCodes).toHaveLength(8)
+    expect(user.mfaRecoveryCodes).not.toContain('oldhash')
+    expect(user.save).toHaveBeenCalledOnce()
   })
 })

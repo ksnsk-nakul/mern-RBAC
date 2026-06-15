@@ -6,7 +6,7 @@ import { User } from '../models/User.js'
 import { NotFoundError, AppError } from '../lib/errors.js'
 
 const RECOVERY_CODE_COUNT = 8
-const RECOVERY_CODE_BYTES = 4
+const RECOVERY_CODE_BYTES = 10
 
 function hashCode(code: string): string {
   return crypto.createHash('sha256').update(code.toUpperCase()).digest('hex')
