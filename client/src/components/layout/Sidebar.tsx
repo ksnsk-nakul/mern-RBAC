@@ -27,6 +27,7 @@ const adminNav: NavItem[] = [
   { label: 'Settings',      to: '/admin/settings',             permission: 'settings.view' },
   { label: 'Login Pages',   to: '/admin/settings/login-pages', permission: 'settings.manage' },
   { label: 'Secrets',       to: '/admin/settings/secrets' },
+  { label: 'Security',     to: '/admin/security',         permission: 'roles.manage' },
 ]
 
 const subadminNav: NavItem[] = [
