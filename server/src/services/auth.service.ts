@@ -62,8 +62,9 @@ export async function loginWithRole(
       if (options.recoveryCode) {
         await useRecoveryCode(user._id as mongoose.Types.ObjectId, options.recoveryCode)
       } else if (options.totpCode) {
-        const valid = verifyTotp(user.mfaTotpSecret!, options.totpCode)
-        if (!valid) throw new AuthError('Invalid TOTP code')
+        if (!user.mfaTotpSecret) throw new AuthError('MFA not configured')
+        const totpValid = verifyTotp(user.mfaTotpSecret, options.totpCode)
+        if (!totpValid) throw new AuthError('Invalid TOTP code')
       } else {
         return { status: 'mfa_required' }
       }
