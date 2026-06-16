@@ -10,6 +10,7 @@ import { statsAdminRouter }        from './admin/stats.js'
 import { settingsAdminRouter }     from './admin/settings.js'
 import { loginConfigsAdminRouter }  from './admin/loginConfigs.js'
 import { secretsAdminRouter }       from './admin/secrets.js'
+import { logsAdminRouter }          from './admin/logs.js'
 import { mfaRouter }                from './mfa.js'
 import { trustedDevicesRouter }    from './trustedDevices.js'
 import { apiTokensRouter }         from './apiTokens.js'
@@ -34,3 +35,4 @@ router.use('/admin/stats',               statsAdminRouter)
 router.use('/admin/settings',            settingsAdminRouter)
 router.use('/admin/login-configs',       loginConfigsAdminRouter)
 router.use('/admin/secrets',             secretsAdminRouter)
+router.use('/admin/logs',               logsAdminRouter)
