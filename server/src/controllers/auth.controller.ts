@@ -4,6 +4,7 @@ import { asyncHandler } from '../lib/errors.js'
 import * as AuthService from '../services/auth.service.js'
 import { setAuthCookies, clearAuthCookies } from '../lib/cookies.js'
 import { z } from 'zod'
+import * as LoginActivity from '../services/loginActivity.service.js'
 
 const loginSchema = z.object({
   email:        z.string().email(),
@@ -20,19 +21,39 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const ip        = (req.ip ?? '').replace('::ffff:', '')
   const deviceFingerprint = crypto.createHash('sha256').update(`${userAgent}:${ip}`).digest('hex')
 
-  const result = await AuthService.loginWithRole(email, password, role, {
-    totpCode,
-    recoveryCode,
-    deviceFingerprint,
-  })
+  let loginResult: Awaited<ReturnType<typeof AuthService.loginWithRole>> | null = null
+  let loginError:  Error | null = null
 
-  if (result.status === 'mfa_required') {
+  try {
+    loginResult = await AuthService.loginWithRole(email, password, role, {
+      totpCode,
+      recoveryCode,
+      deviceFingerprint,
+    })
+  } catch (err) {
+    loginError = err as Error
+  }
+
+  // Record login attempt — fire and forget, never let it block the response
+  if (loginResult?.status !== 'mfa_required') {
+    LoginActivity.recordLogin({
+      ip,
+      userAgent,
+      roleSlug:   role.slug,
+      success:    loginResult?.status === 'ok',
+      failReason: loginError?.message,
+    }).catch(() => {})
+  }
+
+  if (loginError) throw loginError
+
+  if (loginResult!.status === 'mfa_required') {
     res.json({ mfaRequired: true })
     return
   }
 
-  setAuthCookies(res, result.auth.accessToken, result.auth.refreshToken)
-  res.json({ user: result.auth.user, role: result.auth.role, redirectTo: result.auth.redirectTo })
+  setAuthCookies(res, loginResult!.auth.accessToken, loginResult!.auth.refreshToken)
+  res.json({ user: loginResult!.auth.user, role: loginResult!.auth.role, redirectTo: loginResult!.auth.redirectTo })
 })
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
