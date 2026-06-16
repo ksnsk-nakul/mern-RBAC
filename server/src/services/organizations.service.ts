@@ -43,7 +43,7 @@ export async function createOrg(
   // Creator automatically becomes owner
   await OrganizationUser.create({ orgId: org._id, userId: actorId, orgRole: 'owner', status: 'active' })
 
-  return { id: String(org._id), name: org.name, slug: org.slug, createdAt: (org as any).createdAt?.toISOString() ?? '' }
+  return { id: String(org._id), name: org.name, slug: org.slug, createdAt: org.createdAt.toISOString() }
 }
 
 export async function getOrg(id: string): Promise<OrgItem> {
@@ -152,7 +152,7 @@ export async function acceptInvite(
     orgId:     String(membership.orgId),
     orgRole:   membership.orgRole,
     status:    membership.status,
-    createdAt: (membership as any).createdAt?.toISOString() ?? '',
+    createdAt: membership.createdAt.toISOString(),
   }
 }
 
@@ -171,7 +171,7 @@ export async function addMember(
     orgId:     String(membership.orgId),
     orgRole:   membership.orgRole,
     status:    membership.status,
-    createdAt: (membership as any).createdAt?.toISOString() ?? '',
+    createdAt: membership.createdAt.toISOString(),
   }
 }
 

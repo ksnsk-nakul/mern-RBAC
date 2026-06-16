@@ -21,7 +21,7 @@ vi.mock('../../config/env.js', () => ({
 
 const { mockOrgCreate, mockOrgFindOne, mockOrgFind, mockOrgFindById, mockOrgCountDocuments,
         mockOuCreate, mockOuFindOne, mockOuFind, mockOuFindOneAndUpdate, mockOuDeleteMany, mockOuDeleteOne,
-        mockUserUpdateOne, mockOrgFindByIdAndUpdate, mockOrgFindByIdDelete } = vi.hoisted(() => ({
+        mockUserUpdateOne, mockOrgFindByIdAndUpdate } = vi.hoisted(() => ({
   mockOrgCreate:            vi.fn(),
   mockOrgFindOne:           vi.fn(),
   mockOrgFind:              vi.fn(),
@@ -35,7 +35,6 @@ const { mockOrgCreate, mockOrgFindOne, mockOrgFind, mockOrgFindById, mockOrgCoun
   mockOuDeleteOne:          vi.fn(),
   mockUserUpdateOne:        vi.fn(),
   mockOrgFindByIdAndUpdate: vi.fn(),
-  mockOrgFindByIdDelete:    vi.fn(),
 }))
 
 vi.mock('../../models/Organization.js', () => ({
@@ -77,7 +76,7 @@ beforeEach(() => { vi.clearAllMocks() })
 
 describe('createOrg', () => {
   it('generates slug from name and creates org with actorId as createdBy', async () => {
-    const fakeOrg = { _id: orgId, name: 'Acme Corp', slug: 'acme-corp', createdBy: actorId }
+    const fakeOrg = { _id: orgId, name: 'Acme Corp', slug: 'acme-corp', createdBy: actorId, createdAt: new Date() }
     mockOrgFindOne.mockResolvedValue(null)
     mockOrgCreate.mockResolvedValue(fakeOrg)
     mockOuCreate.mockResolvedValue({})
@@ -128,6 +127,7 @@ describe('acceptInvite', () => {
       userId,
       orgRole: 'member',
       status: 'active',
+      createdAt: new Date(),
     }
     mockOuFindOneAndUpdate.mockResolvedValue(fakeMembership)
 
