@@ -1,7 +1,8 @@
 import type { Request, Response } from 'express'
-import type mongoose from 'mongoose'
-import { asyncHandler } from '../../lib/errors.js'
+import mongoose from 'mongoose'
+import { asyncHandler, NotFoundError } from '../../lib/errors.js'
 import * as OrgsService from '../../services/organizations.service.js'
+import * as ActivityLogService from '../../services/activityLog.service.js'
 import { z } from 'zod'
 
 interface AuthUser {
@@ -48,52 +49,92 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
   const input = createOrgSchema.parse(req.body)
   const auth  = req.user as unknown as AuthUser
   const org   = await OrgsService.createOrg(input, auth.userId)
+  ActivityLogService.appendActivity({
+    action:     'org.created',
+    actorId:    auth.userId,
+    targetType: 'organization',
+    targetId:   org.id,
+    targetName: org.name,
+  }).catch(() => {})
   res.status(201).json({ org })
 })
 
 export const update = asyncHandler(async (req: Request, res: Response) => {
   const input = updateOrgSchema.parse(req.body)
+  const auth  = req.user as unknown as AuthUser
   const org   = await OrgsService.updateOrg(req.params.id as string, input)
+  ActivityLogService.appendActivity({
+    action:     'org.updated',
+    actorId:    auth.userId,
+    targetType: 'organization',
+    targetId:   req.params.id as string,
+    meta:       input,
+  }).catch(() => {})
   res.json({ org })
 })
 
 export const remove = asyncHandler(async (req: Request, res: Response) => {
+  const auth = req.user as unknown as AuthUser
   await OrgsService.deleteOrg(req.params.id as string)
+  ActivityLogService.appendActivity({
+    action:     'org.deleted',
+    actorId:    auth.userId,
+    targetType: 'organization',
+    targetId:   req.params.id as string,
+  }).catch(() => {})
   res.json({ deleted: true })
 })
 
 export const listMembers = asyncHandler(async (req: Request, res: Response) => {
-  const mn = (await import('mongoose')).default
-  const { NotFoundError } = await import('../../lib/errors.js')
   const id = req.params.id as string
-  if (!mn.Types.ObjectId.isValid(id)) throw new NotFoundError('Organization not found')
-  const members = await OrgsService.listMembers(new mn.Types.ObjectId(id))
+  if (!mongoose.Types.ObjectId.isValid(id)) throw new NotFoundError('Organization not found')
+  const members = await OrgsService.listMembers(new mongoose.Types.ObjectId(id))
   res.json({ members })
 })
 
 export const addMember = asyncHandler(async (req: Request, res: Response) => {
   const { userId, orgRole } = addMemberSchema.parse(req.body)
-  const mn    = (await import('mongoose')).default
-  const orgId = new mn.Types.ObjectId(req.params.id as string)
-  const uId   = new mn.Types.ObjectId(userId)
+  const auth  = req.user as unknown as AuthUser
+  const orgId = new mongoose.Types.ObjectId(req.params.id as string)
+  const uId   = new mongoose.Types.ObjectId(userId)
   const member = await OrgsService.addMember(orgId, uId, orgRole)
+  ActivityLogService.appendActivity({
+    action:     'org.member_added',
+    actorId:    auth.userId,
+    targetType: 'organization',
+    targetId:   String(orgId),
+    meta:       { userId, orgRole },
+  }).catch(() => {})
   res.status(201).json({ member })
 })
 
 export const inviteMember = asyncHandler(async (req: Request, res: Response) => {
   const { userId, orgRole } = inviteMemberSchema.parse(req.body)
   const auth  = req.user as unknown as AuthUser
-  const mn    = (await import('mongoose')).default
-  const orgId = new mn.Types.ObjectId(req.params.id as string)
-  const uId   = new mn.Types.ObjectId(userId)
+  const orgId = new mongoose.Types.ObjectId(req.params.id as string)
+  const uId   = new mongoose.Types.ObjectId(userId)
   const result = await OrgsService.inviteMember(orgId, uId, orgRole, auth.userId)
+  ActivityLogService.appendActivity({
+    action:     'org.member_invited',
+    actorId:    auth.userId,
+    targetType: 'organization',
+    targetId:   String(orgId),
+    meta:       { userId, orgRole },
+  }).catch(() => {})
   res.status(201).json(result)
 })
 
 export const removeMember = asyncHandler(async (req: Request, res: Response) => {
-  const mn    = (await import('mongoose')).default
-  const orgId = new mn.Types.ObjectId(req.params.id as string)
-  const uId   = new mn.Types.ObjectId(req.params.userId as string)
+  const auth  = req.user as unknown as AuthUser
+  const orgId = new mongoose.Types.ObjectId(req.params.id as string)
+  const uId   = new mongoose.Types.ObjectId(req.params.userId as string)
   await OrgsService.removeMember(orgId, uId)
+  ActivityLogService.appendActivity({
+    action:     'org.member_removed',
+    actorId:    auth.userId,
+    targetType: 'organization',
+    targetId:   String(orgId),
+    meta:       { userId: String(uId) },
+  }).catch(() => {})
   res.json({ removed: true })
 })
