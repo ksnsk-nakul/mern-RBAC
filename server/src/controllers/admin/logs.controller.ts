@@ -22,8 +22,9 @@ export const listActivity = asyncHandler(async (req: Request, res: Response) => 
   const from   = parseDateParam(req.query.from)
   const to     = parseDateParam(req.query.to)
   const action = (req.query.action as string) || undefined
+  const orgId  = (req.query.orgId  as string) || undefined
 
-  const result = await ActivityLogService.listActivity({ page, limit, from, to, action })
+  const result = await ActivityLogService.listActivity({ page, limit, from, to, action, orgId })
   res.json(result)
 })
 

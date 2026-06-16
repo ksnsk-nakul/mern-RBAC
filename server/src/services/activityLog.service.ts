@@ -10,6 +10,7 @@ export interface AppendInput {
   targetId?:   string
   targetName?: string
   meta?:       Record<string, unknown>
+  orgId?:      mongoose.Types.ObjectId
 }
 
 export interface ActivityLogItem {
@@ -20,6 +21,7 @@ export interface ActivityLogItem {
   targetId?:   string
   targetName?: string
   meta?:       Record<string, unknown>
+  orgId?:      string
   hash:        string
   prevHash:    string
   createdAt:   string
@@ -47,6 +49,7 @@ export async function listActivity(opts: {
   from?:   Date
   to?:     Date
   action?: string
+  orgId?:  string
 }): Promise<{ logs: ActivityLogItem[]; total: number; pages: number }> {
   const page  = opts.page  ?? 1
   const limit = opts.limit ?? 50
@@ -54,6 +57,9 @@ export async function listActivity(opts: {
 
   const filter: Record<string, unknown> = {}
   if (opts.action) filter.action = opts.action
+  if (opts.orgId && mongoose.Types.ObjectId.isValid(opts.orgId)) {
+    filter.orgId = new mongoose.Types.ObjectId(opts.orgId)
+  }
   if (opts.from || opts.to) {
     const dateFilter: Record<string, Date> = {}
     if (opts.from) dateFilter.$gte = opts.from
@@ -75,6 +81,7 @@ export async function listActivity(opts: {
       targetId:   d.targetId,
       targetName: d.targetName,
       meta:       d.meta as Record<string, unknown> | undefined,
+      orgId:      d.orgId ? String(d.orgId) : undefined,
       hash:       d.hash,
       prevHash:   d.prevHash,
       createdAt:  (d as any).createdAt?.toISOString() ?? '',
@@ -136,6 +143,7 @@ export async function exportLogs(opts: {
     targetId:   d.targetId,
     targetName: d.targetName,
     meta:       d.meta as Record<string, unknown> | undefined,
+    orgId:      d.orgId ? String(d.orgId) : undefined,
     hash:       d.hash,
     prevHash:   d.prevHash,
     createdAt:  (d as any).createdAt?.toISOString() ?? '',

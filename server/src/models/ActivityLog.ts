@@ -8,6 +8,7 @@ export interface IActivityLog extends Document {
   targetId?:   string
   targetName?: string
   meta?:       Record<string, unknown>
+  orgId?:      mongoose.Types.ObjectId
   prevHash:    string
   hash:        string
   createdAt:   Date
@@ -22,6 +23,7 @@ const schema = new mongoose.Schema<IActivityLog>(
     targetId:    { type: String },
     targetName:  { type: String },
     meta:        { type: mongoose.Schema.Types.Mixed },
+    orgId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' },
     prevHash:    { type: String, required: true },
     hash:        { type: String, required: true, unique: true },
   },
@@ -31,5 +33,6 @@ const schema = new mongoose.Schema<IActivityLog>(
 schema.index({ createdAt: -1 })
 schema.index({ actorId:   1 })
 schema.index({ action:    1, createdAt: -1 })
+schema.index({ orgId: 1, createdAt: -1 })
 
 export const ActivityLog: Model<IActivityLog> = mongoose.model('ActivityLog', schema)
