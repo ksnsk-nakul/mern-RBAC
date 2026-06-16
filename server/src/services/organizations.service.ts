@@ -188,6 +188,12 @@ export async function removeMember(
   }
 
   await OrganizationUser.deleteOne({ orgId, userId })
+
+  // Clear the removed user's active org if they were in this org
+  await User.updateOne(
+    { _id: userId, currentOrganization: orgId },
+    { $unset: { currentOrganization: '' } },
+  )
 }
 
 export async function listMembers(orgId: mongoose.Types.ObjectId): Promise<OrgMemberItem[]> {

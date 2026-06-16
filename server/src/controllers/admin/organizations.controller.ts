@@ -22,12 +22,12 @@ const updateOrgSchema = z.object({
 })
 
 const addMemberSchema = z.object({
-  userId:  z.string().min(1),
+  userId:  z.string().regex(/^[a-f\d]{24}$/i, 'Invalid user ID'),
   orgRole: z.enum(['owner', 'admin', 'member']),
 })
 
 const inviteMemberSchema = z.object({
-  userId:  z.string().min(1),
+  userId:  z.string().regex(/^[a-f\d]{24}$/i, 'Invalid user ID'),
   orgRole: z.enum(['owner', 'admin', 'member']),
 })
 
@@ -55,6 +55,7 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
     targetType: 'organization',
     targetId:   org.id,
     targetName: org.name,
+    orgId:      new mongoose.Types.ObjectId(org.id),
   }).catch(() => {})
   res.status(201).json({ org })
 })
@@ -69,6 +70,7 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
     targetType: 'organization',
     targetId:   req.params.id as string,
     meta:       input,
+    orgId:      new mongoose.Types.ObjectId(req.params.id as string),
   }).catch(() => {})
   res.json({ org })
 })
@@ -81,6 +83,7 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
     actorId:    auth.userId,
     targetType: 'organization',
     targetId:   req.params.id as string,
+    orgId:      new mongoose.Types.ObjectId(req.params.id as string),
   }).catch(() => {})
   res.json({ deleted: true })
 })
@@ -95,6 +98,7 @@ export const listMembers = asyncHandler(async (req: Request, res: Response) => {
 export const addMember = asyncHandler(async (req: Request, res: Response) => {
   const { userId, orgRole } = addMemberSchema.parse(req.body)
   const auth  = req.user as unknown as AuthUser
+  if (!mongoose.Types.ObjectId.isValid(req.params.id as string)) throw new NotFoundError('Organization not found')
   const orgId = new mongoose.Types.ObjectId(req.params.id as string)
   const uId   = new mongoose.Types.ObjectId(userId)
   const member = await OrgsService.addMember(orgId, uId, orgRole)
@@ -104,6 +108,7 @@ export const addMember = asyncHandler(async (req: Request, res: Response) => {
     targetType: 'organization',
     targetId:   String(orgId),
     meta:       { userId, orgRole },
+    orgId,
   }).catch(() => {})
   res.status(201).json({ member })
 })
@@ -111,6 +116,7 @@ export const addMember = asyncHandler(async (req: Request, res: Response) => {
 export const inviteMember = asyncHandler(async (req: Request, res: Response) => {
   const { userId, orgRole } = inviteMemberSchema.parse(req.body)
   const auth  = req.user as unknown as AuthUser
+  if (!mongoose.Types.ObjectId.isValid(req.params.id as string)) throw new NotFoundError('Organization not found')
   const orgId = new mongoose.Types.ObjectId(req.params.id as string)
   const uId   = new mongoose.Types.ObjectId(userId)
   const result = await OrgsService.inviteMember(orgId, uId, orgRole, auth.userId)
@@ -120,12 +126,15 @@ export const inviteMember = asyncHandler(async (req: Request, res: Response) => 
     targetType: 'organization',
     targetId:   String(orgId),
     meta:       { userId, orgRole },
+    orgId,
   }).catch(() => {})
   res.status(201).json(result)
 })
 
 export const removeMember = asyncHandler(async (req: Request, res: Response) => {
   const auth  = req.user as unknown as AuthUser
+  if (!mongoose.Types.ObjectId.isValid(req.params.id as string)) throw new NotFoundError('Organization not found')
+  if (!mongoose.Types.ObjectId.isValid(req.params.userId as string)) throw new NotFoundError('User not found')
   const orgId = new mongoose.Types.ObjectId(req.params.id as string)
   const uId   = new mongoose.Types.ObjectId(req.params.userId as string)
   await OrgsService.removeMember(orgId, uId)
@@ -135,6 +144,7 @@ export const removeMember = asyncHandler(async (req: Request, res: Response) => 
     targetType: 'organization',
     targetId:   String(orgId),
     meta:       { userId: String(uId) },
+    orgId,
   }).catch(() => {})
   res.json({ removed: true })
 })
