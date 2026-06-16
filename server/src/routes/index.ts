@@ -12,6 +12,7 @@ import { loginConfigsAdminRouter }  from './admin/loginConfigs.js'
 import { secretsAdminRouter }       from './admin/secrets.js'
 import { logsAdminRouter }          from './admin/logs.js'
 import { organizationsAdminRouter } from './admin/organizations.js'
+import { orgsRouter }               from './organizations.js'
 import { mfaRouter }                from './mfa.js'
 import { trustedDevicesRouter }    from './trustedDevices.js'
 import { apiTokensRouter }         from './apiTokens.js'
@@ -27,6 +28,7 @@ router.use('/auth/google', googleAuthRouter)
 router.use('/auth/mfa',     mfaRouter)
 router.use('/auth/devices',     trustedDevicesRouter)
 router.use('/auth/api-tokens', apiTokensRouter)
+router.use('/auth/orgs',      orgsRouter)
 
 router.use('/admin/users',               usersAdminRouter)
 router.use('/admin/users/:userId/roles', userRolesAdminRouter)
