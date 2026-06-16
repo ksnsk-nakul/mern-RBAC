@@ -77,7 +77,7 @@ export async function exportLoginLogs(opts: {
 
   const docs = await LoginActivityLog.find(filter)
     .sort({ createdAt: -1 })
-    .limit(opts.limit ?? 10_000)
+    .limit(Math.min(opts.limit ?? 10_000, 10_000))
     .lean()
 
   return docs.map((d) => ({
