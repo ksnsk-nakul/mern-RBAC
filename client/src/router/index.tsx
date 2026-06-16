@@ -17,6 +17,7 @@ import AdminOrganizationsPage from '@/pages/admin/OrganizationsPage'
 import SupportTicketsPage     from '@/pages/admin/SupportTicketsPage'
 import SubAdminDashboard      from '@/pages/subadmin/SubAdminDashboard'
 import UserSecurityPage       from '@/pages/dashboard/SecurityPage'
+import UserOrganizationsPage  from '@/pages/dashboard/OrganizationsPage'
 
 export function AppRouter() {
   return (
@@ -29,7 +30,8 @@ export function AppRouter() {
       {/* User */}
       <Route element={<AuthGuard roleRoute="dashboard"><AppShell /></AuthGuard>}>
         <Route path="/dashboard" element={<UserDashboard />} />
-        <Route path="/dashboard/security" element={<AuthGuard><UserSecurityPage /></AuthGuard>} />
+        <Route path="/dashboard/security"       element={<AuthGuard><UserSecurityPage /></AuthGuard>} />
+        <Route path="/dashboard/organizations"  element={<AuthGuard><UserOrganizationsPage /></AuthGuard>} />
       </Route>
 
       {/* Admin */}

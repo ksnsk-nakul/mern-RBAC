@@ -15,7 +15,8 @@ const userNav: NavItem[] = [
   { label: 'Projects',  to: '/dashboard/projects' },
   { label: 'Tasks',     to: '/dashboard/tasks' },
   { label: 'AI Assistant', to: '/dashboard/ai' },
-  { label: 'Security', to: '/dashboard/security' },
+  { label: 'Security',       to: '/dashboard/security' },
+  { label: 'Organizations', to: '/dashboard/organizations' },
 ]
 
 const adminNav: NavItem[] = [
@@ -40,7 +41,7 @@ const subadminNav: NavItem[] = [
 ]
 
 export function Sidebar() {
-  const { role } = useAuthStore()
+  const { role, user } = useAuthStore()
   const { hasPermission } = usePermission()
 
   const nav =
@@ -53,10 +54,13 @@ export function Sidebar() {
   return (
     <aside className="flex w-56 flex-col border-r bg-card">
       <div
-        className="flex h-14 shrink-0 items-center px-4 text-lg font-bold text-white"
+        className="flex h-14 shrink-0 flex-col items-start justify-center px-4 text-white"
         style={{ backgroundColor: 'var(--role-accent)' }}
       >
-        {role?.name ?? 'App'}
+        <span className="text-lg font-bold leading-tight">{role?.name ?? 'App'}</span>
+        {user?.currentOrg && (
+          <span className="text-xs text-white/70 truncate max-w-[176px]">{user.currentOrg.name}</span>
+        )}
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto p-2 pt-4">
         {filtered.map((item) => (

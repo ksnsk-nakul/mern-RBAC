@@ -7,6 +7,7 @@ interface AuthUser {
   email: string
   avatarUrl?: string
   isFounder: boolean
+  currentOrg?: { id: string; name: string; slug: string } | null
 }
 
 interface AuthRole {
