@@ -87,5 +87,13 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const secret = await SecretsService.clearSecret(String(slug), auth.userId)
+
+  ActivityLogService.appendActivity({
+    action:     'secret.cleared',
+    actorId:    auth.userId,
+    targetType: 'secret',
+    targetName: String(slug),
+  }).catch(() => {})
+
   res.json({ secret })
 })
