@@ -7,6 +7,6 @@ export const orgsRouter = Router()
 orgsRouter.use(authenticate)
 
 orgsRouter.get('/',               C.listMyOrgs)
-orgsRouter.post('/:id/switch',    C.switchOrg)
-orgsRouter.delete('/switch',      C.clearOrg)
 orgsRouter.post('/invite/accept', C.acceptInvite)
+orgsRouter.delete('/switch',      C.clearOrg)
+orgsRouter.post('/:id/switch',    C.switchOrg)

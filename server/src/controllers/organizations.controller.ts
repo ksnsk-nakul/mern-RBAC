@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import mongoose from 'mongoose'
 import { asyncHandler, NotFoundError } from '../lib/errors.js'
 import * as OrgsService from '../services/organizations.service.js'
+import { OrganizationUser } from '../models/OrganizationUser.js'
 import { z } from 'zod'
 
 interface AuthUser {
@@ -22,7 +23,13 @@ export const switchOrg = asyncHandler(async (req: Request, res: Response) => {
 
   if (!mongoose.Types.ObjectId.isValid(id)) throw new NotFoundError('Organization not found')
 
-  await OrgsService.switchOrg(auth.userId, new mongoose.Types.ObjectId(id))
+  const orgId = new mongoose.Types.ObjectId(id)
+
+  // Verify the user is an active member of this org
+  const membership = await OrganizationUser.findOne({ orgId, userId: auth.userId, status: 'active' })
+  if (!membership) throw new NotFoundError('Organization not found')
+
+  await OrgsService.switchOrg(auth.userId, orgId)
   res.json({ switched: true })
 })
 
