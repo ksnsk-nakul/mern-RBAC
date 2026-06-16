@@ -20,6 +20,7 @@ export default function UserOrganizationsPage() {
   const [token,     setToken]     = useState('')
   const [accepting, setAccepting] = useState(false)
   const [switching, setSwitching] = useState<string | null>(null)
+  const [clearing,  setClearing]  = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -46,6 +47,7 @@ export default function UserOrganizationsPage() {
   }
 
   async function handleClear() {
+    setClearing(true)
     try {
       await api.delete('/auth/orgs/switch')
       if (user && role) {
@@ -53,6 +55,8 @@ export default function UserOrganizationsPage() {
       }
     } catch {
       alert('Failed to clear organization.')
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -85,7 +89,9 @@ export default function UserOrganizationsPage() {
             <p className="text-sm font-medium">Active: {user.currentOrg.name}</p>
             <code className="text-xs text-muted-foreground">{user.currentOrg.slug}</code>
           </div>
-          <Button size="sm" variant="outline" onClick={() => void handleClear()}>Clear</Button>
+          <Button size="sm" variant="outline" onClick={() => void handleClear()} disabled={clearing}>
+            {clearing ? '…' : 'Clear'}
+          </Button>
         </div>
       )}
 
@@ -102,13 +108,14 @@ export default function UserOrganizationsPage() {
                     <div className="flex items-center gap-2 mt-1">
                       <code className="text-xs text-muted-foreground">{org.slug}</code>
                       <Badge variant="secondary">{org.orgRole}</Badge>
+                      {org.status !== 'active' && <Badge variant="secondary" className="text-xs">{org.status}</Badge>}
                     </div>
                   </div>
                   <Button
                     size="sm"
                     variant={activeOrgId === org.id ? 'default' : 'outline'}
                     onClick={() => void handleSwitch(org.id, org.name, org.slug)}
-                    disabled={switching === org.id}
+                    disabled={activeOrgId === org.id || switching === org.id}
                   >
                     {activeOrgId === org.id ? 'Active' : switching === org.id ? '…' : 'Switch'}
                   </Button>
