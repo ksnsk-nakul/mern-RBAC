@@ -28,6 +28,6 @@ const schema = new mongoose.Schema<IOrganizationUser>(
 
 schema.index({ orgId: 1, userId: 1 }, { unique: true })
 schema.index({ userId: 1, status:  1 })
-schema.index({ invitationToken: 1 }, { sparse: true })
+schema.index({ invitationToken: 1 }, { unique: true, sparse: true })
 
 export const OrganizationUser: Model<IOrganizationUser> = mongoose.model('OrganizationUser', schema)

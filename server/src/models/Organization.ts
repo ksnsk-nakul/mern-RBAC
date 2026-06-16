@@ -11,9 +11,9 @@ export interface IOrganization extends Document {
 
 const schema = new mongoose.Schema<IOrganization>(
   {
-    name:             { type: String, required: true },
+    name:             { type: String, required: true, trim: true },
     slug:             { type: String, required: true, unique: true, lowercase: true },
-    addonApiKeyHash:  { type: String },
+    addonApiKeyHash:  { type: String },  // SHA-256 of raw add-on API key; raw key never stored
     createdBy:        { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },
