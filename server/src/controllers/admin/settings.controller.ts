@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import type mongoose from 'mongoose'
 import { asyncHandler } from '../../lib/errors.js'
 import * as SettingsService from '../../services/settings.service.js'
+import * as ActivityLogService from '../../services/activityLog.service.js'
 
 interface AuthUser {
   userId:      mongoose.Types.ObjectId
@@ -20,8 +21,18 @@ export const listPublic = asyncHandler(async (_req: Request, res: Response) => {
 })
 
 export const update = asyncHandler(async (req: Request, res: Response) => {
-  const slug    = req.params.slug as string
+  const slug      = req.params.slug as string
   const { value } = req.body as { value: unknown }
-  const setting = await SettingsService.updateSetting(slug, value, (req.user as unknown as AuthUser).userId)
+  const auth      = req.user as unknown as AuthUser
+  const setting   = await SettingsService.updateSetting(slug, value, auth.userId)
+
+  ActivityLogService.appendActivity({
+    action:     'setting.updated',
+    actorId:    auth.userId,
+    targetType: 'setting',
+    targetId:   slug,
+    targetName: slug,
+  }).catch(() => {})
+
   res.json({ setting })
 })

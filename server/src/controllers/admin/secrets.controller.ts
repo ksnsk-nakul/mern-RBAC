@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import type mongoose from 'mongoose'
 import { asyncHandler, ForbiddenError } from '../../lib/errors.js'
 import * as SecretsService from '../../services/secrets.service.js'
+import * as ActivityLogService from '../../services/activityLog.service.js'
 import { z } from 'zod'
 import rateLimit from 'express-rate-limit'
 
@@ -41,6 +42,14 @@ export const reveal = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const value = await SecretsService.revealSecret(String(slug))
+
+  ActivityLogService.appendActivity({
+    action:     'secret.revealed',
+    actorId:    auth.userId,
+    targetType: 'secret',
+    targetName: String(slug),
+  }).catch(() => {})
+
   res.json({ value })
 })
 
@@ -56,6 +65,14 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
 
   const { value } = z.object({ value: z.string().min(1) }).parse(req.body)
   const secret    = await SecretsService.setSecret(String(slug), value, auth.userId)
+
+  ActivityLogService.appendActivity({
+    action:     'secret.updated',
+    actorId:    auth.userId,
+    targetType: 'secret',
+    targetName: String(slug),
+  }).catch(() => {})
+
   res.json({ secret })
 })
 
