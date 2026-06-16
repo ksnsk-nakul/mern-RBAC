@@ -35,13 +35,20 @@ function MembersPanel({ orgId, onClose }: { orgId: string; onClose: () => void }
       await api.post(`/admin/orgs/${orgId}/members`, { userId: addId.trim(), orgRole: addRole })
       setAddId('')
       await load()
+    } catch {
+      alert('Failed to add member.')
     } finally { setAdding(false) }
   }
 
   async function handleRemove(userId: string) {
-    await api.delete(`/admin/orgs/${orgId}/members/${userId}`)
-    setMembers((m) => m.filter((x) => x.userId !== userId))
-    setRemoveTarget(null)
+    try {
+      await api.delete(`/admin/orgs/${orgId}/members/${userId}`)
+      setMembers((m) => m.filter((x) => x.userId !== userId))
+    } catch {
+      alert('Failed to remove member.')
+    } finally {
+      setRemoveTarget(null)
+    }
   }
 
   return (
@@ -120,13 +127,20 @@ export default function AdminOrganizationsPage() {
       await api.post('/admin/orgs', { name: newName.trim() })
       setNewName('')
       await load()
+    } catch {
+      alert('Failed to create organization.')
     } finally { setCreating(false) }
   }
 
   async function handleDelete(id: string) {
-    await api.delete(`/admin/orgs/${id}`)
-    setOrgs((o) => o.filter((x) => x.id !== id))
-    setDeleteTarget(null)
+    try {
+      await api.delete(`/admin/orgs/${id}`)
+      setOrgs((o) => o.filter((x) => x.id !== id))
+    } catch {
+      alert('Failed to delete organization.')
+    } finally {
+      setDeleteTarget(null)
+    }
   }
 
   return (
