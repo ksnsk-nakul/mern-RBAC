@@ -61,10 +61,11 @@ export const exportLogs = asyncHandler(async (req: Request, res: Response) => {
     return
   }
 
-  const rows = await ActivityLogService.exportLogs({ from, to })
+  const orgId = (req.query.orgId as string) || undefined
+  const rows = await ActivityLogService.exportLogs({ from, to, orgId })
 
   if (format === 'csv') {
-    const headers = ['id', 'action', 'actorEmail', 'targetType', 'targetId', 'targetName', 'hash', 'prevHash', 'createdAt']
+    const headers = ['id', 'action', 'actorEmail', 'targetType', 'targetId', 'targetName', 'orgId', 'hash', 'prevHash', 'createdAt']
     res.setHeader('Content-Type', 'text/csv')
     res.setHeader('Content-Disposition', 'attachment; filename="activity-logs.csv"')
     res.send(toCSV(headers, rows as unknown as Record<string, unknown>[]))

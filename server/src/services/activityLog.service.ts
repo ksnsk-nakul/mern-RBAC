@@ -106,6 +106,7 @@ export async function verifyChain(): Promise<{ valid: boolean; brokenAt?: number
       targetId:   rec.targetId,
       targetName: rec.targetName,
       meta:       rec.meta,
+      orgId:      rec.orgId,
       prevHash,
     })
     const expected = computeHash(content)
@@ -121,8 +122,12 @@ export async function exportLogs(opts: {
   from?:  Date
   to?:    Date
   limit?: number
+  orgId?: string
 }): Promise<ActivityLogItem[]> {
   const filter: Record<string, unknown> = {}
+  if (opts.orgId && mongoose.Types.ObjectId.isValid(opts.orgId)) {
+    filter.orgId = new mongoose.Types.ObjectId(opts.orgId)
+  }
   if (opts.from || opts.to) {
     const dateFilter: Record<string, Date> = {}
     if (opts.from) dateFilter.$gte = opts.from
