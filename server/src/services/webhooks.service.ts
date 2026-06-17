@@ -122,6 +122,7 @@ export async function regenerateSecret(orgId: mongoose.Types.ObjectId, id: strin
 }
 
 export async function listDeliveries(
+  orgId:     mongoose.Types.ObjectId,
   webhookId: string,
   opts: { page?: number; limit?: number },
 ): Promise<{ deliveries: DeliveryItem[]; total: number; pages: number }> {
@@ -129,7 +130,11 @@ export async function listDeliveries(
   const limit = opts.limit ?? 20
   const skip  = (page - 1) * limit
 
-  const filter = { webhookId: new mongoose.Types.ObjectId(webhookId) }
+  if (!mongoose.Types.ObjectId.isValid(webhookId)) {
+    return { deliveries: [], total: 0, pages: 0 }
+  }
+
+  const filter = { webhookId: new mongoose.Types.ObjectId(webhookId), orgId }
 
   const [deliveries, total] = await Promise.all([
     WebhookDelivery.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),

@@ -154,10 +154,16 @@ describe('listDeliveries', () => {
     })
     mockDeliveryCountDocuments.mockResolvedValue(1)
 
-    const result = await listDeliveries(String(endpointId), { page: 1, limit: 20 })
+    const result = await listDeliveries(orgId, String(endpointId), { page: 1, limit: 20 })
 
     expect(result.total).toBe(1)
     expect(result.deliveries).toHaveLength(1)
     expect(result.deliveries[0]!.status).toBe('success')
+  })
+
+  it('returns an empty page for an invalid webhookId without querying the database', async () => {
+    const result = await listDeliveries(orgId, 'not-an-id', { page: 1, limit: 20 })
+    expect(result).toEqual({ deliveries: [], total: 0, pages: 0 })
+    expect(mockDeliveryFind).not.toHaveBeenCalled()
   })
 })
