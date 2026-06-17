@@ -3,6 +3,7 @@ import type mongoose from 'mongoose'
 import { asyncHandler } from '../lib/errors.js'
 import { z } from 'zod'
 import * as MfaService from '../services/mfa.service.js'
+import * as WebhooksService from '../services/webhooks.service.js'
 
 interface AuthUser { userId: mongoose.Types.ObjectId; permissions: string[] }
 const auth = (req: Request): AuthUser => req.user as unknown as AuthUser
@@ -20,12 +21,14 @@ export const setup = asyncHandler(async (req: Request, res: Response) => {
 export const enable = asyncHandler(async (req: Request, res: Response) => {
   const { totpCode } = z.object({ totpCode: z.string().length(6) }).parse(req.body)
   await MfaService.verifyAndEnableMfa(auth(req).userId, totpCode)
+  WebhooksService.dispatchEvent('mfa.enabled', auth(req).userId, {}).catch(() => {})
   res.json({ ok: true })
 })
 
 export const disable = asyncHandler(async (req: Request, res: Response) => {
   const { totpCode } = z.object({ totpCode: z.string().length(6) }).parse(req.body)
   await MfaService.disableMfa(auth(req).userId, totpCode)
+  WebhooksService.dispatchEvent('mfa.disabled', auth(req).userId, {}).catch(() => {})
   res.json({ ok: true })
 })
 

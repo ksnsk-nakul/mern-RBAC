@@ -3,6 +3,7 @@ import type mongoose from 'mongoose'
 import { asyncHandler, ForbiddenError } from '../../lib/errors.js'
 import * as SecretsService from '../../services/secrets.service.js'
 import * as ActivityLogService from '../../services/activityLog.service.js'
+import * as WebhooksService from '../../services/webhooks.service.js'
 import { z } from 'zod'
 import rateLimit from 'express-rate-limit'
 
@@ -49,6 +50,8 @@ export const reveal = asyncHandler(async (req: Request, res: Response) => {
     targetType: 'secret',
     targetName: String(slug),
   }).catch(() => {})
+
+  WebhooksService.dispatchEvent('secret.revealed', auth.userId, { slug: String(slug) }).catch(() => {})
 
   res.json({ value })
 })

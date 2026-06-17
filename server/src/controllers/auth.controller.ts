@@ -6,6 +6,7 @@ import * as AuthService from '../services/auth.service.js'
 import { setAuthCookies, clearAuthCookies } from '../lib/cookies.js'
 import { z } from 'zod'
 import * as LoginActivity from '../services/loginActivity.service.js'
+import * as WebhooksService from '../services/webhooks.service.js'
 
 const loginSchema = z.object({
   email:        z.string().email(),
@@ -44,6 +45,26 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
       success:    loginResult?.status === 'ok',
       failReason: loginError?.message,
     }).catch(() => {})
+  }
+
+  if (loginResult?.status === 'ok') {
+    WebhooksService.dispatchEvent(
+      'login.success',
+      new mongoose.Types.ObjectId(loginResult.auth.user.id),
+      { email, ip, userAgent },
+    ).catch(() => {})
+  } else if (loginResult?.status !== 'mfa_required') {
+    void (async () => {
+      const { User } = await import('../models/User.js')
+      const failedUser = await User.findOne({ email: email.toLowerCase() }).select('_id').lean()
+      if (failedUser) {
+        await WebhooksService.dispatchEvent(
+          'login.failed',
+          failedUser._id as mongoose.Types.ObjectId,
+          { email, ip, userAgent, reason: loginError?.message },
+        )
+      }
+    })().catch(() => {})
   }
 
   if (loginError) throw loginError
