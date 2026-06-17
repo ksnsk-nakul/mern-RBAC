@@ -289,8 +289,10 @@ export async function retryFailedDeliveries(): Promise<void> {
   }
 }
 
-export async function retryDeliveryManually(deliveryId: string): Promise<void> {
-  const delivery = await WebhookDelivery.findById(deliveryId)
+export async function retryDeliveryManually(orgId: mongoose.Types.ObjectId, deliveryId: string): Promise<void> {
+  if (!mongoose.Types.ObjectId.isValid(deliveryId)) throw new NotFoundError('Delivery not found')
+
+  const delivery = await WebhookDelivery.findOne({ _id: deliveryId, orgId })
   if (!delivery) throw new NotFoundError('Delivery not found')
 
   await WebhookDelivery.updateOne(

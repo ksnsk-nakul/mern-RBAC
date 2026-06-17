@@ -20,7 +20,7 @@ vi.mock('../../config/env.js', () => ({
 }))
 
 const { mockEndpointCreate, mockEndpointFind, mockEndpointFindById, mockEndpointFindOneAndUpdate, mockEndpointDeleteOne,
-        mockEndpointUpdateOne, mockDeliveryCreate, mockDeliveryFind, mockDeliveryFindById, mockDeliveryUpdateOne,
+        mockEndpointUpdateOne, mockDeliveryCreate, mockDeliveryFind, mockDeliveryFindById, mockDeliveryFindOne, mockDeliveryUpdateOne,
         mockDeliveryCountDocuments, mockOuFind } = vi.hoisted(() => ({
   mockEndpointCreate:           vi.fn(),
   mockEndpointFind:             vi.fn(),
@@ -31,6 +31,7 @@ const { mockEndpointCreate, mockEndpointFind, mockEndpointFindById, mockEndpoint
   mockDeliveryCreate:           vi.fn(),
   mockDeliveryFind:             vi.fn(),
   mockDeliveryFindById:         vi.fn(),
+  mockDeliveryFindOne:          vi.fn(),
   mockDeliveryUpdateOne:        vi.fn(),
   mockDeliveryCountDocuments:   vi.fn(),
   mockOuFind:                   vi.fn(),
@@ -52,6 +53,7 @@ vi.mock('../../models/WebhookDelivery.js', () => ({
     create:         mockDeliveryCreate,
     find:           mockDeliveryFind,
     findById:       mockDeliveryFindById,
+    findOne:        mockDeliveryFindOne,
     updateOne:      mockDeliveryUpdateOne,
     countDocuments: mockDeliveryCountDocuments,
   },
@@ -318,19 +320,23 @@ describe('retryFailedDeliveries', () => {
 })
 
 describe('retryDeliveryManually', () => {
-  it('throws NotFoundError when the delivery does not exist', async () => {
-    mockDeliveryFindById.mockResolvedValue(null)
-    await expect(retryDeliveryManually(String(new mongoose.Types.ObjectId()))).rejects.toThrow(NotFoundError)
+  it('throws NotFoundError for an invalid delivery id', async () => {
+    await expect(retryDeliveryManually(orgId, 'not-an-id')).rejects.toThrow(NotFoundError)
   })
 
-  it('resets attempts and status before re-attempting', async () => {
+  it('throws NotFoundError when the delivery does not exist in this org', async () => {
+    mockDeliveryFindOne.mockResolvedValue(null)
+    await expect(retryDeliveryManually(orgId, String(new mongoose.Types.ObjectId()))).rejects.toThrow(NotFoundError)
+  })
+
+  it('resets attempts and status before re-attempting, scoped to the org', async () => {
     const deliveryId = String(new mongoose.Types.ObjectId())
-    mockDeliveryFindById
-      .mockResolvedValueOnce({ _id: deliveryId })
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue(null) })
+    mockDeliveryFindOne.mockResolvedValue({ _id: deliveryId, orgId })
+    mockDeliveryFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) })
 
-    await retryDeliveryManually(deliveryId)
+    await retryDeliveryManually(orgId, deliveryId)
 
+    expect(mockDeliveryFindOne).toHaveBeenCalledWith({ _id: deliveryId, orgId })
     expect(mockDeliveryUpdateOne).toHaveBeenCalledWith(
       { _id: deliveryId },
       { $set: { attempts: 0, status: 'pending', nextRetryAt: null } },
