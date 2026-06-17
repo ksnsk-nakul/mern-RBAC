@@ -1,8 +1,10 @@
 import crypto from 'crypto'
+import { setTimeout as setAbortTimeout, clearTimeout as clearAbortTimeout } from 'timers'
 import mongoose from 'mongoose'
 import { WebhookEndpoint, type WebhookEventType } from '../models/WebhookEndpoint.js'
 import { WebhookDelivery, type DeliveryStatus } from '../models/WebhookDelivery.js'
-import { encrypt } from '../lib/crypto.js'
+import { OrganizationUser } from '../models/OrganizationUser.js'
+import { encrypt, decrypt } from '../lib/crypto.js'
 import { NotFoundError } from '../lib/errors.js'
 
 export interface WebhookEndpointItem {
@@ -153,4 +155,133 @@ export async function listDeliveries(
     total,
     pages: Math.ceil(total / limit),
   }
+}
+
+const MAX_ATTEMPTS        = 3
+const RETRY_DELAYS_MS     = [30_000, 5 * 60_000]  // delay before 2nd attempt, delay before 3rd attempt
+const DELIVERY_TIMEOUT_MS = 5_000
+
+export async function dispatchEvent(
+  eventType: WebhookEventType,
+  userId:    mongoose.Types.ObjectId,
+  data:      Record<string, unknown>,
+): Promise<void> {
+  const memberships = await OrganizationUser.find({ userId, status: 'active' }).lean()
+  if (memberships.length === 0) return
+
+  const orgIds = memberships.map((m) => m.orgId)
+
+  const endpoints = await WebhookEndpoint.find({
+    orgId:  { $in: orgIds },
+    active: true,
+    events: eventType,
+  }).lean()
+
+  for (const endpoint of endpoints) {
+    const payload = {
+      event:     eventType,
+      orgId:     String(endpoint.orgId),
+      timestamp: new Date().toISOString(),
+      data,
+    }
+
+    const delivery = await WebhookDelivery.create({
+      webhookId: endpoint._id,
+      orgId:     endpoint.orgId,
+      event:     eventType,
+      payload,
+      status:    'pending',
+      attempts:  0,
+    })
+
+    attemptDelivery(String(delivery._id)).catch(() => {})
+  }
+}
+
+export async function attemptDelivery(deliveryId: string): Promise<void> {
+  const delivery = await WebhookDelivery.findById(deliveryId).lean()
+  if (!delivery || delivery.status === 'success') return
+
+  const endpoint = await WebhookEndpoint.findById(delivery.webhookId).lean()
+  if (!endpoint || !endpoint.active) {
+    await WebhookDelivery.updateOne({ _id: deliveryId }, { $set: { status: 'failed' } })
+    return
+  }
+
+  const attempts      = delivery.attempts + 1
+  const lastAttemptAt = new Date()
+
+  const secret = decrypt({ encryptedValue: endpoint.encryptedValue, iv: endpoint.iv, authTag: endpoint.authTag })
+  const body      = JSON.stringify(delivery.payload)
+  const signature = crypto.createHmac('sha256', secret).update(body).digest('hex')
+
+  try {
+    const controller = new AbortController()
+    const timeout = setAbortTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS)
+
+    const res = await fetch(endpoint.url, {
+      method:  'POST',
+      headers: {
+        'Content-Type':        'application/json',
+        'X-Webhook-Signature': `sha256=${signature}`,
+        'X-Webhook-Id':        deliveryId,
+      },
+      body,
+      signal: controller.signal,
+    })
+
+    clearAbortTimeout(timeout)
+
+    const responseStatus = res.status
+    const responseText   = await res.text().catch(() => '')
+    const responseBody   = responseText.slice(0, 1000)
+
+    if (res.ok) {
+      await WebhookDelivery.updateOne(
+        { _id: deliveryId },
+        { $set: { status: 'success', attempts, lastAttemptAt, responseStatus, responseBody } },
+      )
+      return
+    }
+
+    throw new Error(`Non-2xx response: ${responseStatus}`)
+  } catch {
+    if (attempts >= MAX_ATTEMPTS) {
+      await WebhookDelivery.updateOne({ _id: deliveryId }, { $set: { status: 'failed', attempts, lastAttemptAt } })
+      return
+    }
+
+    const delayMs     = RETRY_DELAYS_MS[attempts - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]!
+    const nextRetryAt = new Date(Date.now() + delayMs)
+
+    await WebhookDelivery.updateOne({ _id: deliveryId }, { $set: { attempts, lastAttemptAt, nextRetryAt } })
+
+    setTimeout(() => {
+      attemptDelivery(deliveryId).catch(() => {})
+    }, delayMs)
+  }
+}
+
+export async function retryFailedDeliveries(): Promise<void> {
+  const now = new Date()
+  const pending = await WebhookDelivery.find({
+    status: 'pending',
+    $or: [{ nextRetryAt: null }, { nextRetryAt: { $lte: now } }],
+  }).lean()
+
+  for (const delivery of pending) {
+    attemptDelivery(String(delivery._id)).catch(() => {})
+  }
+}
+
+export async function retryDeliveryManually(deliveryId: string): Promise<void> {
+  const delivery = await WebhookDelivery.findById(deliveryId)
+  if (!delivery) throw new NotFoundError('Delivery not found')
+
+  await WebhookDelivery.updateOne(
+    { _id: deliveryId },
+    { $set: { attempts: 0, status: 'pending', nextRetryAt: null } },
+  )
+
+  await attemptDelivery(deliveryId)
 }

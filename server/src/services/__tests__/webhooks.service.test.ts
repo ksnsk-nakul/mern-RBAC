@@ -19,15 +19,21 @@ vi.mock('../../config/env.js', () => ({
   },
 }))
 
-const { mockEndpointCreate, mockEndpointFind, mockEndpointFindOneAndUpdate, mockEndpointDeleteOne,
-        mockEndpointUpdateOne, mockDeliveryFind, mockDeliveryCountDocuments } = vi.hoisted(() => ({
+const { mockEndpointCreate, mockEndpointFind, mockEndpointFindById, mockEndpointFindOneAndUpdate, mockEndpointDeleteOne,
+        mockEndpointUpdateOne, mockDeliveryCreate, mockDeliveryFind, mockDeliveryFindById, mockDeliveryUpdateOne,
+        mockDeliveryCountDocuments, mockOuFind } = vi.hoisted(() => ({
   mockEndpointCreate:           vi.fn(),
   mockEndpointFind:             vi.fn(),
+  mockEndpointFindById:         vi.fn(),
   mockEndpointFindOneAndUpdate: vi.fn(),
   mockEndpointDeleteOne:        vi.fn(),
   mockEndpointUpdateOne:        vi.fn(),
+  mockDeliveryCreate:           vi.fn(),
   mockDeliveryFind:             vi.fn(),
+  mockDeliveryFindById:         vi.fn(),
+  mockDeliveryUpdateOne:        vi.fn(),
   mockDeliveryCountDocuments:   vi.fn(),
+  mockOuFind:                   vi.fn(),
 }))
 
 vi.mock('../../models/WebhookEndpoint.js', () => ({
@@ -35,6 +41,7 @@ vi.mock('../../models/WebhookEndpoint.js', () => ({
   WebhookEndpoint: {
     create:           mockEndpointCreate,
     find:             mockEndpointFind,
+    findById:         mockEndpointFindById,
     findOneAndUpdate: mockEndpointFindOneAndUpdate,
     deleteOne:        mockEndpointDeleteOne,
     updateOne:        mockEndpointUpdateOne,
@@ -42,16 +49,22 @@ vi.mock('../../models/WebhookEndpoint.js', () => ({
 }))
 vi.mock('../../models/WebhookDelivery.js', () => ({
   WebhookDelivery: {
-    find:             mockDeliveryFind,
-    countDocuments:   mockDeliveryCountDocuments,
+    create:         mockDeliveryCreate,
+    find:           mockDeliveryFind,
+    findById:       mockDeliveryFindById,
+    updateOne:      mockDeliveryUpdateOne,
+    countDocuments: mockDeliveryCountDocuments,
   },
 }))
 vi.mock('../../models/OrganizationUser.js', () => ({
-  OrganizationUser: { find: vi.fn() },
+  OrganizationUser: { find: mockOuFind },
 }))
 
+import crypto from 'crypto'
 import mongoose from 'mongoose'
 import { createEndpoint, listEndpoints, updateEndpoint, deleteEndpoint, regenerateSecret, listDeliveries } from '../webhooks.service.js'
+import { encrypt as realEncrypt } from '../../lib/crypto.js'
+import { dispatchEvent, attemptDelivery, retryFailedDeliveries, retryDeliveryManually } from '../webhooks.service.js'
 import { NotFoundError } from '../../lib/errors.js'
 
 const orgId    = new mongoose.Types.ObjectId()
@@ -165,5 +178,162 @@ describe('listDeliveries', () => {
     const result = await listDeliveries(orgId, 'not-an-id', { page: 1, limit: 20 })
     expect(result).toEqual({ deliveries: [], total: 0, pages: 0 })
     expect(mockDeliveryFind).not.toHaveBeenCalled()
+  })
+})
+
+const userId = new mongoose.Types.ObjectId()
+
+describe('dispatchEvent', () => {
+  it('creates a delivery for each active endpoint matching the event in the user\'s active orgs', async () => {
+    mockOuFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([{ orgId, userId, status: 'active' }]) })
+    mockEndpointFind.mockReturnValue({
+      lean: vi.fn().mockResolvedValue([
+        { _id: endpointId, orgId, url: 'https://example.com/hook', events: ['login.success'], active: true },
+      ]),
+    })
+    mockDeliveryCreate.mockResolvedValue({ _id: new mongoose.Types.ObjectId() })
+    // attemptDelivery is fire-and-forget inside dispatchEvent; give it safe mocks so it resolves quietly
+    mockDeliveryFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) })
+
+    await dispatchEvent('login.success', userId, { email: 'a@b.com' })
+
+    expect(mockDeliveryCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ webhookId: endpointId, orgId, event: 'login.success', status: 'pending', attempts: 0 }),
+    )
+  })
+
+  it('creates no deliveries when the user has no active org memberships', async () => {
+    mockOuFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([]) })
+
+    await dispatchEvent('login.success', userId, {})
+
+    expect(mockDeliveryCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('attemptDelivery', () => {
+  const deliveryId = String(new mongoose.Types.ObjectId())
+
+  it('marks delivery failed without a network call when the endpoint is inactive', async () => {
+    mockDeliveryFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ _id: deliveryId, status: 'pending', attempts: 0, webhookId: endpointId, payload: {} }),
+    })
+    mockEndpointFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue({ _id: endpointId, active: false }) })
+    const fetchSpy = vi.spyOn(global, 'fetch')
+
+    await attemptDelivery(deliveryId)
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(mockDeliveryUpdateOne).toHaveBeenCalledWith({ _id: deliveryId }, { $set: { status: 'failed' } })
+  })
+
+  it('signs the payload with HMAC-SHA256 of the decrypted secret and marks success on 2xx', async () => {
+    const rawSecret = 'test-secret-value'
+    const encryptedPayload = realEncrypt(rawSecret)
+    const payload = { event: 'login.success', orgId: String(orgId), timestamp: '2026-01-01T00:00:00.000Z', data: {} }
+
+    mockDeliveryFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ _id: deliveryId, status: 'pending', attempts: 0, webhookId: endpointId, payload }),
+    })
+    mockEndpointFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        _id: endpointId, active: true, url: 'https://example.com/hook',
+        encryptedValue: encryptedPayload.encryptedValue, iv: encryptedPayload.iv, authTag: encryptedPayload.authTag,
+      }),
+    })
+
+    const mockResponse = { ok: true, status: 200, text: vi.fn().mockResolvedValue('ok') }
+    vi.spyOn(global, 'fetch').mockResolvedValue(mockResponse as any)
+
+    await attemptDelivery(deliveryId)
+
+    const expectedSignature = crypto.createHmac('sha256', rawSecret).update(JSON.stringify(payload)).digest('hex')
+    const fetchCall = (global.fetch as any).mock.calls[0]
+    expect(fetchCall[1].headers['X-Webhook-Signature']).toBe(`sha256=${expectedSignature}`)
+    expect(mockDeliveryUpdateOne).toHaveBeenCalledWith(
+      { _id: deliveryId },
+      expect.objectContaining({ $set: expect.objectContaining({ status: 'success', attempts: 1, responseStatus: 200 }) }),
+    )
+  })
+
+  it('schedules a retry on non-2xx response when attempts remain', async () => {
+    mockDeliveryFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ _id: deliveryId, status: 'pending', attempts: 0, webhookId: endpointId, payload: {} }),
+    })
+    const encryptedPayload = realEncrypt('secret')
+    mockEndpointFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        _id: endpointId, active: true, url: 'https://example.com/hook',
+        encryptedValue: encryptedPayload.encryptedValue, iv: encryptedPayload.iv, authTag: encryptedPayload.authTag,
+      }),
+    })
+    vi.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 500, text: vi.fn().mockResolvedValue('error') } as any)
+    const setTimeoutSpy = vi.spyOn(global, 'setTimeout')
+
+    await attemptDelivery(deliveryId)
+
+    expect(mockDeliveryUpdateOne).toHaveBeenCalledWith(
+      { _id: deliveryId },
+      expect.objectContaining({ $set: expect.objectContaining({ attempts: 1, nextRetryAt: expect.any(Date) }) }),
+    )
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 30_000)
+  })
+
+  it('marks permanently failed after the 3rd attempt with no further retry scheduled', async () => {
+    mockDeliveryFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ _id: deliveryId, status: 'pending', attempts: 2, webhookId: endpointId, payload: {} }),
+    })
+    const encryptedPayload = realEncrypt('secret')
+    mockEndpointFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        _id: endpointId, active: true, url: 'https://example.com/hook',
+        encryptedValue: encryptedPayload.encryptedValue, iv: encryptedPayload.iv, authTag: encryptedPayload.authTag,
+      }),
+    })
+    vi.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 500, text: vi.fn().mockResolvedValue('error') } as any)
+    const setTimeoutSpy = vi.spyOn(global, 'setTimeout')
+
+    await attemptDelivery(deliveryId)
+
+    expect(mockDeliveryUpdateOne).toHaveBeenCalledWith(
+      { _id: deliveryId },
+      expect.objectContaining({ $set: expect.objectContaining({ status: 'failed', attempts: 3 }) }),
+    )
+    expect(setTimeoutSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('retryFailedDeliveries', () => {
+  it('re-attempts every pending delivery whose retry time has passed', async () => {
+    const id1 = new mongoose.Types.ObjectId()
+    mockDeliveryFind.mockReturnValue({ lean: vi.fn().mockResolvedValue([{ _id: id1 }]) })
+    mockDeliveryFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) })
+
+    await retryFailedDeliveries()
+
+    expect(mockDeliveryFind).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'pending' }),
+    )
+  })
+})
+
+describe('retryDeliveryManually', () => {
+  it('throws NotFoundError when the delivery does not exist', async () => {
+    mockDeliveryFindById.mockResolvedValue(null)
+    await expect(retryDeliveryManually(String(new mongoose.Types.ObjectId()))).rejects.toThrow(NotFoundError)
+  })
+
+  it('resets attempts and status before re-attempting', async () => {
+    const deliveryId = String(new mongoose.Types.ObjectId())
+    mockDeliveryFindById
+      .mockResolvedValueOnce({ _id: deliveryId })
+      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue(null) })
+
+    await retryDeliveryManually(deliveryId)
+
+    expect(mockDeliveryUpdateOne).toHaveBeenCalledWith(
+      { _id: deliveryId },
+      { $set: { attempts: 0, status: 'pending', nextRetryAt: null } },
+    )
   })
 })
