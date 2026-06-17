@@ -13,6 +13,7 @@ import { secretsAdminRouter }       from './admin/secrets.js'
 import { logsAdminRouter }          from './admin/logs.js'
 import { organizationsAdminRouter } from './admin/organizations.js'
 import { orgsRouter }               from './organizations.js'
+import { webhooksRouter }           from './webhooks.js'
 import { mfaRouter }                from './mfa.js'
 import { trustedDevicesRouter }    from './trustedDevices.js'
 import { apiTokensRouter }         from './apiTokens.js'
@@ -40,3 +41,4 @@ router.use('/admin/login-configs',       loginConfigsAdminRouter)
 router.use('/admin/secrets',             secretsAdminRouter)
 router.use('/admin/logs',               logsAdminRouter)
 router.use('/admin/orgs',              organizationsAdminRouter)
+router.use('/orgs/:orgId/webhooks',    webhooksRouter)
