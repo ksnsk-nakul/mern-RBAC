@@ -211,11 +211,15 @@ export async function attemptDelivery(deliveryId: string): Promise<void> {
   const attempts      = delivery.attempts + 1
   const lastAttemptAt = new Date()
 
-  const secret = decrypt({ encryptedValue: endpoint.encryptedValue, iv: endpoint.iv, authTag: endpoint.authTag })
-  const body      = JSON.stringify(delivery.payload)
-  const signature = crypto.createHmac('sha256', secret).update(body).digest('hex')
+  let responseStatus: number | undefined
+  let responseBody:   string | undefined
+  let errorMessage:   string | undefined
 
   try {
+    const secret    = decrypt({ encryptedValue: endpoint.encryptedValue, iv: endpoint.iv, authTag: endpoint.authTag })
+    const body      = JSON.stringify(delivery.payload)
+    const signature = crypto.createHmac('sha256', secret).update(body).digest('hex')
+
     const controller = new AbortController()
     const timeout = setAbortTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS)
 
@@ -232,9 +236,9 @@ export async function attemptDelivery(deliveryId: string): Promise<void> {
 
     clearAbortTimeout(timeout)
 
-    const responseStatus = res.status
-    const responseText   = await res.text().catch(() => '')
-    const responseBody   = responseText.slice(0, 1000)
+    responseStatus = res.status
+    const responseText = await res.text().catch(() => '')
+    responseBody = responseText.slice(0, 1000)
 
     if (res.ok) {
       await WebhookDelivery.updateOne(
@@ -244,22 +248,33 @@ export async function attemptDelivery(deliveryId: string): Promise<void> {
       return
     }
 
-    throw new Error(`Non-2xx response: ${responseStatus}`)
-  } catch {
-    if (attempts >= MAX_ATTEMPTS) {
-      await WebhookDelivery.updateOne({ _id: deliveryId }, { $set: { status: 'failed', attempts, lastAttemptAt } })
-      return
-    }
-
-    const delayMs     = RETRY_DELAYS_MS[attempts - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]!
-    const nextRetryAt = new Date(Date.now() + delayMs)
-
-    await WebhookDelivery.updateOne({ _id: deliveryId }, { $set: { attempts, lastAttemptAt, nextRetryAt } })
-
-    setTimeout(() => {
-      attemptDelivery(deliveryId).catch(() => {})
-    }, delayMs)
+    errorMessage = `Non-2xx response: ${responseStatus}`
+  } catch (err) {
+    errorMessage = err instanceof Error ? err.message : String(err)
   }
+
+  if (attempts >= MAX_ATTEMPTS) {
+    console.error(`Webhook delivery ${deliveryId} permanently failed after ${attempts} attempts: ${errorMessage}`)
+    await WebhookDelivery.updateOne(
+      { _id: deliveryId },
+      { $set: { status: 'failed', attempts, lastAttemptAt, responseStatus, responseBody } },
+    )
+    return
+  }
+
+  console.error(`Webhook delivery ${deliveryId} attempt ${attempts} failed, will retry: ${errorMessage}`)
+
+  const delayMs     = RETRY_DELAYS_MS[attempts - 1] ?? RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]!
+  const nextRetryAt = new Date(Date.now() + delayMs)
+
+  await WebhookDelivery.updateOne(
+    { _id: deliveryId },
+    { $set: { attempts, lastAttemptAt, nextRetryAt, responseStatus, responseBody } },
+  )
+
+  setTimeout(() => {
+    attemptDelivery(deliveryId).catch(() => {})
+  }, delayMs)
 }
 
 export async function retryFailedDeliveries(): Promise<void> {
