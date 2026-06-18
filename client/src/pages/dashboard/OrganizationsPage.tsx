@@ -222,7 +222,7 @@ function DeliveriesPanel({ orgId, webhookId, onClose }: { orgId: string; webhook
                     <code className="text-xs">{d.event}</code>
                     <Badge variant={statusBadgeVariant(d.status)}>{d.status}</Badge>
                     <span className="text-xs text-muted-foreground">attempts: {d.attempts}</span>
-                    {d.responseStatus && <span className="text-xs text-muted-foreground">HTTP {d.responseStatus}</span>}
+                    {d.responseStatus !== undefined && <span className="text-xs text-muted-foreground">HTTP {d.responseStatus}</span>}
                   </div>
                   {d.status === 'failed' && (
                     <Button size="sm" variant="outline" onClick={() => void handleRetry(d.id)} disabled={retrying === d.id}>
@@ -262,6 +262,8 @@ function WebhooksTab() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [regenTarget,  setRegenTarget]  = useState<string | null>(null)
   const [regenSecret,  setRegenSecret]  = useState<string | null>(null)
+  const [deleting,     setDeleting]     = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
 
   const load = useCallback(async () => {
     if (!orgId) return
@@ -306,24 +308,28 @@ function WebhooksTab() {
 
   async function handleDelete(id: string) {
     if (!orgId) return
+    setDeleting(true)
     try {
       await api.delete(`/orgs/${orgId}/webhooks/${id}`)
       setEndpoints((prev) => prev.filter((e) => e.id !== id))
     } catch {
       alert('Failed to delete webhook endpoint.')
     } finally {
+      setDeleting(false)
       setDeleteTarget(null)
     }
   }
 
   async function handleRegenerate(id: string) {
     if (!orgId) return
+    setRegenerating(true)
     try {
       const { data } = await api.post(`/orgs/${orgId}/webhooks/${id}/regenerate-secret`)
       setRegenSecret(data.secret)
     } catch {
       alert('Failed to regenerate secret.')
     } finally {
+      setRegenerating(false)
       setRegenTarget(null)
     }
   }
@@ -423,12 +429,12 @@ function WebhooksTab() {
 
       <ConfirmDialog open={!!deleteTarget} title="Delete webhook endpoint"
         message="Delete this webhook endpoint? This cannot be undone."
-        danger onConfirm={() => { if (deleteTarget) void handleDelete(deleteTarget) }}
+        danger loading={deleting} onConfirm={() => { if (deleteTarget) void handleDelete(deleteTarget) }}
         onCancel={() => setDeleteTarget(null)} />
 
       <ConfirmDialog open={!!regenTarget} title="Regenerate secret"
         message="Regenerate this endpoint's secret? The old secret will stop working immediately."
-        danger onConfirm={() => { if (regenTarget) void handleRegenerate(regenTarget) }}
+        danger loading={regenerating} onConfirm={() => { if (regenTarget) void handleRegenerate(regenTarget) }}
         onCancel={() => setRegenTarget(null)} />
     </div>
   )

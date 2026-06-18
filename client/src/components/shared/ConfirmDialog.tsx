@@ -7,9 +7,10 @@ interface Props {
   onConfirm: () => void
   onCancel:  () => void
   danger?:   boolean
+  loading?:  boolean
 }
 
-export function ConfirmDialog({ open, title, message, onConfirm, onCancel, danger }: Props) {
+export function ConfirmDialog({ open, title, message, onConfirm, onCancel, danger, loading }: Props) {
   if (!open) return null
 
   return (
@@ -18,8 +19,10 @@ export function ConfirmDialog({ open, title, message, onConfirm, onCancel, dange
         <h2 className="text-lg font-semibold">{title}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{message}</p>
         <div className="mt-6 flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={danger ? 'destructive' : 'default'} onClick={onConfirm}>Confirm</Button>
+          <Button variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>
+          <Button variant={danger ? 'destructive' : 'default'} onClick={onConfirm} disabled={loading}>
+            {loading ? '…' : 'Confirm'}
+          </Button>
         </div>
       </div>
     </div>
