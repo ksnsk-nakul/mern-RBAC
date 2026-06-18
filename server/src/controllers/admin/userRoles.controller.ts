@@ -18,20 +18,28 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
 export const assign = asyncHandler(async (req: Request, res: Response) => {
   const { roleId } = req.body as { roleId: string }
   const userRoles  = await UserRolesService.assignRole(req.params.userId as string, roleId, (req.user as unknown as AuthUser).userId)
-  WebhooksService.dispatchEvent(
-    'user.role_changed',
-    new mongoose.Types.ObjectId(req.params.userId as string),
-    { action: 'assigned', roleId },
-  ).catch(() => {})
+  try {
+    WebhooksService.dispatchEvent(
+      'user.role_changed',
+      new mongoose.Types.ObjectId(req.params.userId as string),
+      { action: 'assigned', roleId },
+    ).catch((err) => console.error('webhook dispatch failed (user.role_changed):', err))
+  } catch (err) {
+    console.error('webhook dispatch failed (user.role_changed):', err)
+  }
   res.status(201).json({ userRoles })
 })
 
 export const revoke = asyncHandler(async (req: Request, res: Response) => {
   const userRoles = await UserRolesService.revokeRole(req.params.userId as string, req.params.roleId as string)
-  WebhooksService.dispatchEvent(
-    'user.role_changed',
-    new mongoose.Types.ObjectId(req.params.userId as string),
-    { action: 'revoked', roleId: req.params.roleId },
-  ).catch(() => {})
+  try {
+    WebhooksService.dispatchEvent(
+      'user.role_changed',
+      new mongoose.Types.ObjectId(req.params.userId as string),
+      { action: 'revoked', roleId: req.params.roleId },
+    ).catch((err) => console.error('webhook dispatch failed (user.role_changed):', err))
+  } catch (err) {
+    console.error('webhook dispatch failed (user.role_changed):', err)
+  }
   res.json({ userRoles })
 })

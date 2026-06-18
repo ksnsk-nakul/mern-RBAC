@@ -51,7 +51,12 @@ export const reveal = asyncHandler(async (req: Request, res: Response) => {
     targetName: String(slug),
   }).catch(() => {})
 
-  WebhooksService.dispatchEvent('secret.revealed', auth.userId, { slug: String(slug) }).catch(() => {})
+  try {
+    WebhooksService.dispatchEvent('secret.revealed', auth.userId, { slug: String(slug) })
+      .catch((err) => console.error('webhook dispatch failed (secret.revealed):', err))
+  } catch (err) {
+    console.error('webhook dispatch failed (secret.revealed):', err)
+  }
 
   res.json({ value })
 })

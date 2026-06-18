@@ -48,23 +48,31 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (loginResult?.status === 'ok') {
-    WebhooksService.dispatchEvent(
-      'login.success',
-      new mongoose.Types.ObjectId(loginResult.auth.user.id),
-      { email, ip, userAgent },
-    ).catch(() => {})
+    try {
+      WebhooksService.dispatchEvent(
+        'login.success',
+        new mongoose.Types.ObjectId(loginResult.auth.user.id),
+        { email, ip, userAgent },
+      ).catch((err) => console.error('webhook dispatch failed (login.success):', err))
+    } catch (err) {
+      console.error('webhook dispatch failed (login.success):', err)
+    }
   } else if (loginResult?.status !== 'mfa_required') {
     void (async () => {
       const { User } = await import('../models/User.js')
       const failedUser = await User.findOne({ email: email.toLowerCase() }).select('_id').lean()
       if (failedUser) {
-        await WebhooksService.dispatchEvent(
-          'login.failed',
-          failedUser._id as mongoose.Types.ObjectId,
-          { email, ip, userAgent, reason: loginError?.message },
-        )
+        try {
+          await WebhooksService.dispatchEvent(
+            'login.failed',
+            failedUser._id as mongoose.Types.ObjectId,
+            { email, ip, userAgent, reason: loginError?.message },
+          )
+        } catch (err) {
+          console.error('webhook dispatch failed (login.failed):', err)
+        }
       }
-    })().catch(() => {})
+    })().catch((err) => console.error('webhook dispatch failed (login.failed):', err))
   }
 
   if (loginError) throw loginError

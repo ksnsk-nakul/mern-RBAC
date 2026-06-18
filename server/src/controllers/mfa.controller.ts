@@ -21,14 +21,24 @@ export const setup = asyncHandler(async (req: Request, res: Response) => {
 export const enable = asyncHandler(async (req: Request, res: Response) => {
   const { totpCode } = z.object({ totpCode: z.string().length(6) }).parse(req.body)
   await MfaService.verifyAndEnableMfa(auth(req).userId, totpCode)
-  WebhooksService.dispatchEvent('mfa.enabled', auth(req).userId, {}).catch(() => {})
+  try {
+    WebhooksService.dispatchEvent('mfa.enabled', auth(req).userId, {})
+      .catch((err) => console.error('webhook dispatch failed (mfa.enabled):', err))
+  } catch (err) {
+    console.error('webhook dispatch failed (mfa.enabled):', err)
+  }
   res.json({ ok: true })
 })
 
 export const disable = asyncHandler(async (req: Request, res: Response) => {
   const { totpCode } = z.object({ totpCode: z.string().length(6) }).parse(req.body)
   await MfaService.disableMfa(auth(req).userId, totpCode)
-  WebhooksService.dispatchEvent('mfa.disabled', auth(req).userId, {}).catch(() => {})
+  try {
+    WebhooksService.dispatchEvent('mfa.disabled', auth(req).userId, {})
+      .catch((err) => console.error('webhook dispatch failed (mfa.disabled):', err))
+  } catch (err) {
+    console.error('webhook dispatch failed (mfa.disabled):', err)
+  }
   res.json({ ok: true })
 })
 
