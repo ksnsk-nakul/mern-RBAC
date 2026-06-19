@@ -100,7 +100,7 @@ export const regenerateSecret = asyncHandler(async (req: Request, res: Response)
 export const listDeliveries = asyncHandler(async (req: Request, res: Response) => {
   const orgId = new mongoose.Types.ObjectId(req.params.orgId as string)
   const page  = Number(req.query.page)  || 1
-  const limit = Number(req.query.limit) || 20
+  const limit = Math.min(Number(req.query.limit) || 20, 100)
 
   const result = await WebhooksService.listDeliveries(orgId, req.params.id as string, { page, limit })
   res.json(result)

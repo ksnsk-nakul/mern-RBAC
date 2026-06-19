@@ -21,7 +21,7 @@ vi.mock('../../config/env.js', () => ({
 
 const { mockEndpointCreate, mockEndpointFind, mockEndpointFindById, mockEndpointFindOneAndUpdate, mockEndpointDeleteOne,
         mockEndpointUpdateOne, mockDeliveryCreate, mockDeliveryFind, mockDeliveryFindById, mockDeliveryFindOne, mockDeliveryUpdateOne,
-        mockDeliveryCountDocuments, mockOuFind } = vi.hoisted(() => ({
+        mockDeliveryCountDocuments, mockOuFind, mockDnsLookup } = vi.hoisted(() => ({
   mockEndpointCreate:           vi.fn(),
   mockEndpointFind:             vi.fn(),
   mockEndpointFindById:         vi.fn(),
@@ -35,6 +35,12 @@ const { mockEndpointCreate, mockEndpointFind, mockEndpointFindById, mockEndpoint
   mockDeliveryUpdateOne:        vi.fn(),
   mockDeliveryCountDocuments:   vi.fn(),
   mockOuFind:                   vi.fn(),
+  mockDnsLookup:                vi.fn(),
+}))
+
+vi.mock('dns', () => ({
+  default: { promises: { lookup: mockDnsLookup } },
+  promises: { lookup: mockDnsLookup },
 }))
 
 vi.mock('../../models/WebhookEndpoint.js', () => ({
@@ -73,7 +79,10 @@ const orgId    = new mongoose.Types.ObjectId()
 const actorId  = new mongoose.Types.ObjectId()
 const endpointId = new mongoose.Types.ObjectId()
 
-beforeEach(() => { vi.clearAllMocks() })
+beforeEach(() => {
+  vi.clearAllMocks()
+  mockDnsLookup.mockResolvedValue([{ address: '93.184.216.34' }])
+})
 
 describe('createEndpoint', () => {
   it('encrypts a generated secret and returns the raw secret once', async () => {
@@ -341,5 +350,31 @@ describe('retryDeliveryManually', () => {
       { _id: deliveryId },
       { $set: { attempts: 0, status: 'pending', nextRetryAt: null } },
     )
+  })
+})
+
+describe('SSRF protection on webhook URLs', () => {
+  it('createEndpoint rejects a URL resolving to a private IP', async () => {
+    mockDnsLookup.mockResolvedValue([{ address: '10.0.0.5' }])
+    await expect(createEndpoint(orgId, { url: 'https://internal.example.com/hook', events: ['login.success'] }, actorId))
+      .rejects.toThrow(/private or internal/)
+  })
+
+  it('createEndpoint rejects localhost', async () => {
+    await expect(createEndpoint(orgId, { url: 'http://localhost:3000/hook', events: ['login.success'] }, actorId))
+      .rejects.toThrow(/localhost/)
+  })
+
+  it('createEndpoint allows a URL resolving to a public IP', async () => {
+    mockDnsLookup.mockResolvedValue([{ address: '93.184.216.34' }])
+    mockEndpointCreate.mockResolvedValue({ _id: endpointId, url: 'https://example.com/hook', events: ['login.success'], active: true })
+    const result = await createEndpoint(orgId, { url: 'https://example.com/hook', events: ['login.success'] }, actorId)
+    expect(result.url).toBe('https://example.com/hook')
+  })
+
+  it('updateEndpoint rejects changing the url to a private-IP-resolving host', async () => {
+    mockDnsLookup.mockResolvedValue([{ address: '172.16.0.1' }])
+    await expect(updateEndpoint(orgId, String(endpointId), { url: 'https://evil.example.com/hook' }))
+      .rejects.toThrow(/private or internal/)
   })
 })

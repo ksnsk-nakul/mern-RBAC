@@ -1,11 +1,13 @@
 import crypto from 'crypto'
 import { setTimeout as setAbortTimeout, clearTimeout as clearAbortTimeout } from 'timers'
 import mongoose from 'mongoose'
+import dns from 'dns'
+import { URL } from 'url'
 import { WebhookEndpoint, type WebhookEventType } from '../models/WebhookEndpoint.js'
 import { WebhookDelivery, type DeliveryStatus } from '../models/WebhookDelivery.js'
 import { OrganizationUser } from '../models/OrganizationUser.js'
 import { encrypt, decrypt } from '../lib/crypto.js'
-import { NotFoundError } from '../lib/errors.js'
+import { AppError, NotFoundError } from '../lib/errors.js'
 
 export interface WebhookEndpointItem {
   id:        string
@@ -28,11 +30,59 @@ function generateRawSecret(): string {
   return crypto.randomBytes(32).toString('hex')
 }
 
+function isPrivateOrInternalAddress(ip: string): boolean {
+  // IPv4 private/reserved ranges
+  if (/^127\./.test(ip)) return true                    // loopback
+  if (/^10\./.test(ip)) return true                      // RFC1918
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true  // RFC1918
+  if (/^192\.168\./.test(ip)) return true                 // RFC1918
+  if (/^169\.254\./.test(ip)) return true                 // link-local / cloud metadata
+  if (ip === '0.0.0.0') return true
+  // IPv6 loopback / link-local / unique-local
+  if (ip === '::1') return true
+  if (/^fe80:/i.test(ip)) return true
+  if (/^fc00:/i.test(ip) || /^fd00:/i.test(ip)) return true
+  return false
+}
+
+async function assertWebhookUrlIsSafe(rawUrl: string): Promise<void> {
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    throw new AppError('Invalid webhook URL', 400)
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new AppError('Webhook URL must use http or https', 400)
+  }
+
+  const hostname = parsed.hostname
+  if (hostname === 'localhost') {
+    throw new AppError('Webhook URL cannot target localhost', 400)
+  }
+
+  let addresses: { address: string }[]
+  try {
+    addresses = await dns.promises.lookup(hostname, { all: true })
+  } catch {
+    throw new AppError('Webhook URL hostname could not be resolved', 400)
+  }
+
+  for (const { address } of addresses) {
+    if (isPrivateOrInternalAddress(address)) {
+      throw new AppError('Webhook URL resolves to a private or internal network address, which is not allowed', 400)
+    }
+  }
+}
+
 export async function createEndpoint(
   orgId:   mongoose.Types.ObjectId,
   input:   { url: string; events: WebhookEventType[] },
   actorId: mongoose.Types.ObjectId,
 ): Promise<WebhookEndpointItem & { secret: string }> {
+  await assertWebhookUrlIsSafe(input.url)
+
   const rawSecret = generateRawSecret()
   const encrypted  = encrypt(rawSecret)
 
@@ -78,6 +128,10 @@ export async function updateEndpoint(
   input: { url?: string; events?: WebhookEventType[]; active?: boolean },
 ): Promise<WebhookEndpointItem> {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new NotFoundError('Webhook endpoint not found')
+
+  if (input.url !== undefined) {
+    await assertWebhookUrlIsSafe(input.url)
+  }
 
   const update: Record<string, unknown> = {}
   if (input.url !== undefined)    update.url    = input.url
@@ -219,6 +273,8 @@ export async function attemptDelivery(deliveryId: string): Promise<void> {
     const secret    = decrypt({ encryptedValue: endpoint.encryptedValue, iv: endpoint.iv, authTag: endpoint.authTag })
     const body      = JSON.stringify(delivery.payload)
     const signature = crypto.createHmac('sha256', secret).update(body).digest('hex')
+
+    await assertWebhookUrlIsSafe(endpoint.url)
 
     const controller = new AbortController()
     const timeout = setAbortTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS)
