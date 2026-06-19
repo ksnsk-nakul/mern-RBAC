@@ -27,6 +27,8 @@ export const CORE_PERMISSIONS = [
   { name: 'Manage API Tokens', slug: 'security.tokens.manage', mainGroup: 'Security' },
   { name: 'View Organizations',   slug: 'orgs.view',   mainGroup: 'Organizations' },
   { name: 'Manage Organizations', slug: 'orgs.manage', mainGroup: 'Organizations' },
+  { name: 'View Billing',          slug: 'billing.view', mainGroup: 'Billing' },
+  { name: 'Manage Billing',        slug: 'billing.manage', mainGroup: 'Billing' },
 ] as const
 
 export const CORE_SETTINGS = [

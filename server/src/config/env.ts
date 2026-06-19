@@ -11,6 +11,7 @@ const schema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_CALLBACK_URL: z.string().url().optional(),
   AI_SERVICE_URL: z.string().url().default('http://ai:8001'),
+  CLIENT_URL: z.string().url().default('http://localhost:8080'),
   SEED_ADMIN_EMAIL: z.string().email().default('admin@admin.com'),
   SEED_ADMIN_PASSWORD: z.string().min(8).default('changeme'),
 })
