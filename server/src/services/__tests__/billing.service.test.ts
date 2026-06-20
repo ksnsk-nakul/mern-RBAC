@@ -20,33 +20,67 @@ vi.mock('../../config/env.js', () => ({
   },
 }))
 
-const { mockPlanCreate, mockPlanFind, mockPlanFindOne, mockPlanFindById, mockPlanFindByIdAndUpdate } = vi.hoisted(() => ({
-  mockPlanCreate:           vi.fn(),
-  mockPlanFind:             vi.fn(),
-  mockPlanFindOne:          vi.fn(),
-  mockPlanFindById:         vi.fn(),
+const { mockPlanCreate, mockPlanFind, mockPlanFindOne, mockPlanFindById, mockPlanFindByIdAndUpdate,
+        mockSubFindOne, mockSubCreate, mockSubUpdateOne,
+        mockPaymentFind, mockPaymentCountDocuments, mockPaymentCreate, mockPaymentFindOne,
+        mockRevealSecret,
+        mockCustomersCreate, mockCheckoutSessionsCreate, mockPortalSessionsCreate, mockSubscriptionsUpdate } = vi.hoisted(() => ({
+  mockPlanCreate:            vi.fn(),
+  mockPlanFind:              vi.fn(),
+  mockPlanFindOne:           vi.fn(),
+  mockPlanFindById:          vi.fn(),
   mockPlanFindByIdAndUpdate: vi.fn(),
+  mockSubFindOne:            vi.fn(),
+  mockSubCreate:             vi.fn(),
+  mockSubUpdateOne:          vi.fn(),
+  mockPaymentFind:           vi.fn(),
+  mockPaymentCountDocuments: vi.fn(),
+  mockPaymentCreate:         vi.fn(),
+  mockPaymentFindOne:        vi.fn(),
+  mockRevealSecret:          vi.fn(),
+  mockCustomersCreate:        vi.fn(),
+  mockCheckoutSessionsCreate: vi.fn(),
+  mockPortalSessionsCreate:   vi.fn(),
+  mockSubscriptionsUpdate:    vi.fn(),
 }))
 
 vi.mock('../../models/Plan.js', () => ({
   Plan: {
-    create:           mockPlanCreate,
-    find:             mockPlanFind,
-    findOne:          mockPlanFindOne,
-    findById:         mockPlanFindById,
+    create:            mockPlanCreate,
+    find:              mockPlanFind,
+    findOne:           mockPlanFindOne,
+    findById:          mockPlanFindById,
     findByIdAndUpdate: mockPlanFindByIdAndUpdate,
   },
 }))
-vi.mock('../../models/Subscription.js', () => ({ Subscription: { findOne: vi.fn(), create: vi.fn() } }))
-vi.mock('../../models/PaymentEvent.js', () => ({ PaymentEvent: { find: vi.fn(), countDocuments: vi.fn(), create: vi.fn(), findOne: vi.fn() } }))
+vi.mock('../../models/Subscription.js', () => ({
+  Subscription: { findOne: mockSubFindOne, create: mockSubCreate, updateOne: mockSubUpdateOne },
+}))
+vi.mock('../../models/PaymentEvent.js', () => ({
+  PaymentEvent: { find: mockPaymentFind, countDocuments: mockPaymentCountDocuments, create: mockPaymentCreate, findOne: mockPaymentFindOne },
+}))
+vi.mock('../../services/secrets.service.js', () => ({ revealSecret: mockRevealSecret }))
+vi.mock('stripe', () => ({
+  default: vi.fn().mockImplementation(() => ({
+    customers:     { create: mockCustomersCreate },
+    checkout:      { sessions: { create: mockCheckoutSessionsCreate } },
+    billingPortal: { sessions: { create: mockPortalSessionsCreate } },
+    subscriptions: { update: mockSubscriptionsUpdate },
+    webhooks:      { constructEvent: vi.fn() },
+  })),
+}))
 
 import mongoose from 'mongoose'
 import { createPlan, listPlans, getPlan, updatePlan } from '../billing.service.js'
+import { createCheckoutSession, createPortalSession, cancelSubscription, getBillingOverview, listPayments, processStripeWebhookEvent } from '../billing.service.js'
 import { NotFoundError, AppError } from '../../lib/errors.js'
 
 const planId = new mongoose.Types.ObjectId()
 
-beforeEach(() => { vi.clearAllMocks() })
+beforeEach(() => {
+  vi.clearAllMocks()
+  mockRevealSecret.mockResolvedValue('sk_test_fake')
+})
 
 describe('createPlan', () => {
   it('creates a plan when the slug is free', async () => {
@@ -134,5 +168,192 @@ describe('updatePlan', () => {
 
     const result = await updatePlan(String(planId), { active: false })
     expect(result.active).toBe(false)
+  })
+})
+
+const orgId = new mongoose.Types.ObjectId()
+const subId = new mongoose.Types.ObjectId()
+
+describe('createCheckoutSession', () => {
+  it('throws NotFoundError for a plan that does not exist or is inactive', async () => {
+    mockPlanFindOne.mockResolvedValue(null)
+    await expect(createCheckoutSession(orgId, String(planId))).rejects.toThrow(NotFoundError)
+  })
+
+  it('creates a Stripe customer on first checkout and reuses it on a second', async () => {
+    mockPlanFindOne.mockResolvedValue({ _id: planId, stripePriceId: 'price_123', active: true })
+    mockSubFindOne.mockResolvedValue(null)
+    const created = { _id: subId, orgId, planId, status: 'incomplete', stripeCustomerId: undefined, save: vi.fn() }
+    mockSubCreate.mockResolvedValue(created)
+    mockCustomersCreate.mockResolvedValue({ id: 'cus_123' })
+    mockCheckoutSessionsCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/session_abc' })
+
+    const result = await createCheckoutSession(orgId, String(planId))
+
+    expect(mockCustomersCreate).toHaveBeenCalledWith(expect.objectContaining({ metadata: { orgId: String(orgId) } }))
+    expect(created.save).toHaveBeenCalled()
+    expect(result.checkoutUrl).toBe('https://checkout.stripe.com/session_abc')
+  })
+
+  it('reuses an existing Stripe customer without creating a new one', async () => {
+    mockPlanFindOne.mockResolvedValue({ _id: planId, stripePriceId: 'price_123', active: true })
+    const existingSub = { _id: subId, orgId, planId, status: 'active', stripeCustomerId: 'cus_existing', save: vi.fn() }
+    mockSubFindOne.mockResolvedValue(existingSub)
+    mockCheckoutSessionsCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/session_xyz' })
+
+    await createCheckoutSession(orgId, String(planId))
+
+    expect(mockCustomersCreate).not.toHaveBeenCalled()
+    expect(mockCheckoutSessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: 'cus_existing', mode: 'subscription' }),
+    )
+  })
+})
+
+describe('createPortalSession', () => {
+  it('throws AppError when the org has no Stripe customer yet', async () => {
+    mockSubFindOne.mockResolvedValue(null)
+    await expect(createPortalSession(orgId)).rejects.toThrow(AppError)
+  })
+
+  it('returns a portal URL for an org with a Stripe customer', async () => {
+    mockSubFindOne.mockResolvedValue({ stripeCustomerId: 'cus_123' })
+    mockPortalSessionsCreate.mockResolvedValue({ url: 'https://billing.stripe.com/portal_abc' })
+
+    const result = await createPortalSession(orgId)
+    expect(result.portalUrl).toBe('https://billing.stripe.com/portal_abc')
+  })
+})
+
+describe('cancelSubscription', () => {
+  it('throws NotFoundError when there is no active Stripe subscription', async () => {
+    mockSubFindOne.mockResolvedValue(null)
+    await expect(cancelSubscription(orgId)).rejects.toThrow(NotFoundError)
+  })
+
+  it('calls Stripe to cancel at period end and updates the local flag', async () => {
+    const sub = { stripeSubscriptionId: 'sub_123', cancelAtPeriodEnd: false, save: vi.fn() }
+    mockSubFindOne.mockResolvedValue(sub)
+
+    await cancelSubscription(orgId)
+
+    expect(mockSubscriptionsUpdate).toHaveBeenCalledWith('sub_123', { cancel_at_period_end: true })
+    expect(sub.cancelAtPeriodEnd).toBe(true)
+    expect(sub.save).toHaveBeenCalled()
+  })
+})
+
+describe('getBillingOverview', () => {
+  it('returns null subscription and active plans when the org has no subscription', async () => {
+    mockSubFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) })
+    mockPlanFind.mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) })
+
+    const result = await getBillingOverview(orgId)
+    expect(result.subscription).toBeNull()
+  })
+
+  it('returns the active subscription with plan name resolved', async () => {
+    mockSubFindOne.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({
+        _id: subId, planId, status: 'active', currentPeriodEnd: new Date('2026-07-01'), cancelAtPeriodEnd: false,
+      }),
+    })
+    mockPlanFind.mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) })
+    mockPlanFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue({ name: 'Pro' }) })
+
+    const result = await getBillingOverview(orgId)
+    expect(result.subscription?.planName).toBe('Pro')
+    expect(result.subscription?.status).toBe('active')
+  })
+})
+
+describe('listPayments', () => {
+  it('returns paginated payment items', async () => {
+    mockPaymentFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        skip: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue([
+              { _id: new mongoose.Types.ObjectId(), type: 'invoice.paid', amountCents: 2900, status: 'paid', createdAt: new Date() },
+            ]),
+          }),
+        }),
+      }),
+    })
+    mockPaymentCountDocuments.mockResolvedValue(1)
+
+    const result = await listPayments(orgId, { page: 1, limit: 20 })
+    expect(result.total).toBe(1)
+    expect(result.payments[0]!.type).toBe('invoice.paid')
+  })
+})
+
+describe('processStripeWebhookEvent', () => {
+  it('checkout.session.completed activates the matching subscription', async () => {
+    const sub = { stripeSubscriptionId: undefined, status: 'incomplete', save: vi.fn() }
+    mockSubFindOne.mockResolvedValue(sub)
+
+    await processStripeWebhookEvent({
+      id: 'evt_1', type: 'checkout.session.completed',
+      data: { object: { customer: 'cus_123', subscription: 'sub_123' } },
+    } as any)
+
+    expect(sub.stripeSubscriptionId).toBe('sub_123')
+    expect(sub.status).toBe('active')
+    expect(sub.save).toHaveBeenCalled()
+  })
+
+  it('customer.subscription.updated syncs status and period end', async () => {
+    const sub = { status: 'incomplete', currentPeriodEnd: undefined as Date | undefined, cancelAtPeriodEnd: false, save: vi.fn() }
+    mockSubFindOne.mockResolvedValue(sub)
+
+    await processStripeWebhookEvent({
+      id: 'evt_2', type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_123', status: 'active', cancel_at_period_end: true,
+          items: { data: [{ current_period_end: 1893456000 }] },
+        },
+      },
+    } as any)
+
+    expect(sub.status).toBe('active')
+    expect(sub.currentPeriodEnd).toEqual(new Date(1893456000 * 1000))
+    expect(sub.cancelAtPeriodEnd).toBe(true)
+    expect(sub.save).toHaveBeenCalled()
+  })
+
+  it('customer.subscription.deleted marks the subscription canceled', async () => {
+    await processStripeWebhookEvent({
+      id: 'evt_3', type: 'customer.subscription.deleted',
+      data: { object: { id: 'sub_123' } },
+    } as any)
+
+    expect(mockSubUpdateOne).toHaveBeenCalledWith({ stripeSubscriptionId: 'sub_123' }, { $set: { status: 'canceled' } })
+  })
+
+  it('invoice.paid is idempotent on stripeEventId', async () => {
+    mockPaymentFindOne.mockResolvedValue({ stripeEventId: 'evt_4' })
+
+    await processStripeWebhookEvent({
+      id: 'evt_4', type: 'invoice.paid',
+      data: { object: { customer: 'cus_123', amount_paid: 2900 } },
+    } as any)
+
+    expect(mockPaymentCreate).not.toHaveBeenCalled()
+  })
+
+  it('invoice.paid records a new PaymentEvent when not already processed', async () => {
+    mockPaymentFindOne.mockResolvedValue(null)
+    mockSubFindOne.mockResolvedValue({ _id: subId, orgId })
+
+    await processStripeWebhookEvent({
+      id: 'evt_5', type: 'invoice.paid',
+      data: { object: { customer: 'cus_123', amount_paid: 2900 } },
+    } as any)
+
+    expect(mockPaymentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId, subscriptionId: subId, stripeEventId: 'evt_5', type: 'invoice.paid', amountCents: 2900, status: 'paid' }),
+    )
   })
 })
