@@ -263,6 +263,7 @@ export async function processStripeWebhookEvent(event: Stripe.Event): Promise<vo
       if (sub) {
         sub.stripeSubscriptionId = subscriptionId
         sub.status = 'active'
+        sub.cancelAtPeriodEnd = false
         await sub.save()
       }
       break
@@ -295,15 +296,23 @@ export async function processStripeWebhookEvent(event: Stripe.Event): Promise<vo
       const sub = await Subscription.findOne({ stripeCustomerId: invoice.customer as string })
       if (!sub) return
 
-      await PaymentEvent.create({
-        orgId:          sub.orgId,
-        subscriptionId: sub._id,
-        stripeEventId:  event.id,
-        type:           event.type,
-        amountCents:    invoice.amount_paid ?? invoice.amount_due,
-        status:         event.type === 'invoice.paid' ? 'paid' : 'failed',
-        raw:            invoice as unknown as Record<string, unknown>,
-      })
+      try {
+        await PaymentEvent.create({
+          orgId:          sub.orgId,
+          subscriptionId: sub._id,
+          stripeEventId:  event.id,
+          type:           event.type,
+          amountCents:    invoice.amount_paid ?? invoice.amount_due,
+          status:         event.type === 'invoice.paid' ? 'paid' : 'failed',
+          raw:            invoice as unknown as Record<string, unknown>,
+        })
+      } catch (err) {
+        // A concurrent delivery of the same event may have already created this
+        // row between our findOne check and this create call — the unique index
+        // on stripeEventId is the real correctness guarantee, findOne is just a fast path.
+        const isDuplicateKey = typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === 11000
+        if (!isDuplicateKey) throw err
+      }
       break
     }
     default:

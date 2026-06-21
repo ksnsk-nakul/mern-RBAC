@@ -289,8 +289,8 @@ describe('listPayments', () => {
 })
 
 describe('processStripeWebhookEvent', () => {
-  it('checkout.session.completed activates the matching subscription', async () => {
-    const sub = { stripeSubscriptionId: undefined, status: 'incomplete', save: vi.fn() }
+  it('checkout.session.completed activates the matching subscription and clears any stale cancel flag', async () => {
+    const sub = { stripeSubscriptionId: undefined, status: 'incomplete', cancelAtPeriodEnd: true, save: vi.fn() }
     mockSubFindOne.mockResolvedValue(sub)
 
     await processStripeWebhookEvent({
@@ -300,6 +300,7 @@ describe('processStripeWebhookEvent', () => {
 
     expect(sub.stripeSubscriptionId).toBe('sub_123')
     expect(sub.status).toBe('active')
+    expect(sub.cancelAtPeriodEnd).toBe(false)
     expect(sub.save).toHaveBeenCalled()
   })
 
@@ -355,5 +356,28 @@ describe('processStripeWebhookEvent', () => {
     expect(mockPaymentCreate).toHaveBeenCalledWith(
       expect.objectContaining({ orgId, subscriptionId: subId, stripeEventId: 'evt_5', type: 'invoice.paid', amountCents: 2900, status: 'paid' }),
     )
+  })
+
+  it('invoice.paid swallows a duplicate-key error from a concurrent delivery instead of throwing', async () => {
+    mockPaymentFindOne.mockResolvedValue(null)
+    mockSubFindOne.mockResolvedValue({ _id: subId, orgId })
+    const duplicateKeyError = Object.assign(new Error('E11000 duplicate key'), { code: 11000 })
+    mockPaymentCreate.mockRejectedValue(duplicateKeyError)
+
+    await expect(processStripeWebhookEvent({
+      id: 'evt_6', type: 'invoice.paid',
+      data: { object: { customer: 'cus_123', amount_paid: 2900 } },
+    } as any)).resolves.toBeUndefined()
+  })
+
+  it('invoice.paid rethrows a non-duplicate-key error from create', async () => {
+    mockPaymentFindOne.mockResolvedValue(null)
+    mockSubFindOne.mockResolvedValue({ _id: subId, orgId })
+    mockPaymentCreate.mockRejectedValue(new Error('connection lost'))
+
+    await expect(processStripeWebhookEvent({
+      id: 'evt_7', type: 'invoice.paid',
+      data: { object: { customer: 'cus_123', amount_paid: 2900 } },
+    } as any)).rejects.toThrow('connection lost')
   })
 })
