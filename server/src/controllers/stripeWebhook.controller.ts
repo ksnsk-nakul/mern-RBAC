@@ -10,16 +10,13 @@ export const handleStripeWebhook = asyncHandler(async (req: Request, res: Respon
     throw new AppError('Missing Stripe signature', 400)
   }
 
-  const [webhookSecret, stripeSecretKey] = await Promise.all([
-    SecretsService.revealSecret('stripe.webhook_secret'),
-    SecretsService.revealSecret('stripe.secret_key'),
-  ])
+  const webhookSecret = await SecretsService.revealSecret('stripe.webhook_secret')
 
-  const stripe = new Stripe(stripeSecretKey)
-
+  // Stripe.webhooks is a static helper — signature verification needs only the
+  // webhook secret, never the API secret key, so no Stripe client is constructed here.
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(req.body as Buffer, signature, webhookSecret)
+    event = Stripe.webhooks.constructEvent(req.body as Buffer, signature, webhookSecret)
   } catch (err) {
     throw new AppError(`Webhook signature verification failed: ${(err as Error).message}`, 400)
   }
