@@ -41,6 +41,43 @@ interface DeliveryItem {
   createdAt:       string
 }
 
+interface PlanItem {
+  id:            string
+  name:          string
+  slug:          string
+  priceCents:    number
+  currency:      string
+  billingPeriod: 'month' | 'year'
+  features:      string[]
+}
+
+interface SubscriptionOverview {
+  id:                string
+  planId:            string
+  planName:          string
+  status:            'active' | 'past_due' | 'canceled' | 'incomplete'
+  currentPeriodEnd:  string | null
+  cancelAtPeriodEnd: boolean
+}
+
+interface PaymentItem {
+  id:           string
+  type:         string
+  amountCents?: number
+  status?:      string
+  createdAt:    string
+}
+
+function formatPrice(priceCents: number, currency: string): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.toUpperCase() }).format(priceCents / 100)
+}
+
+function subscriptionBadgeVariant(status: SubscriptionOverview['status']): 'default' | 'secondary' | 'destructive' {
+  if (status === 'active')  return 'default'
+  if (status === 'past_due') return 'destructive'
+  return 'secondary'
+}
+
 // ─── My Organizations Tab ───────────────────────────────────────────────────
 
 function MyOrgsTab() {
@@ -440,9 +477,166 @@ function WebhooksTab() {
   )
 }
 
+// ─── Billing Tab ─────────────────────────────────────────────────────────────
+
+function BillingTab() {
+  const { user } = useAuthStore()
+  const orgId    = user?.currentOrg?.id
+
+  const [subscription, setSubscription] = useState<SubscriptionOverview | null>(null)
+  const [plans,        setPlans]        = useState<PlanItem[]>([])
+  const [payments,     setPayments]     = useState<PaymentItem[]>([])
+  const [loading,      setLoading]      = useState(true)
+  const [subscribing,  setSubscribing]  = useState<string | null>(null)
+  const [openingPortal, setOpeningPortal] = useState(false)
+  const [canceling,    setCanceling]    = useState(false)
+  const [cancelTarget, setCancelTarget] = useState(false)
+
+  const load = useCallback(async () => {
+    if (!orgId) return
+    setLoading(true)
+    try {
+      const [overviewRes, paymentsRes] = await Promise.all([
+        api.get(`/orgs/${orgId}/billing`),
+        api.get(`/orgs/${orgId}/billing/payments?page=1&limit=20`),
+      ])
+      setSubscription(overviewRes.data.subscription)
+      setPlans(overviewRes.data.plans)
+      setPayments(paymentsRes.data.payments)
+    } finally {
+      setLoading(false)
+    }
+  }, [orgId])
+
+  useEffect(() => { void load() }, [load])
+
+  async function handleSubscribe(planId: string) {
+    if (!orgId) return
+    setSubscribing(planId)
+    try {
+      const { data } = await api.post(`/orgs/${orgId}/billing/checkout`, { planId })
+      window.location.href = data.checkoutUrl
+    } catch {
+      alert('Failed to start checkout.')
+      setSubscribing(null)
+    }
+  }
+
+  async function handleOpenPortal() {
+    if (!orgId) return
+    setOpeningPortal(true)
+    try {
+      const { data } = await api.post(`/orgs/${orgId}/billing/portal`)
+      window.location.href = data.portalUrl
+    } catch {
+      alert('Failed to open billing portal.')
+    } finally {
+      setOpeningPortal(false)
+    }
+  }
+
+  async function handleCancel() {
+    if (!orgId) return
+    setCanceling(true)
+    try {
+      await api.post(`/orgs/${orgId}/billing/cancel`)
+      await load()
+    } catch {
+      alert('Failed to cancel subscription.')
+    } finally {
+      setCanceling(false)
+      setCancelTarget(false)
+    }
+  }
+
+  if (!orgId) {
+    return <p className="text-sm text-muted-foreground">Switch to an organization to manage its billing.</p>
+  }
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading…</p>
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      {subscription
+        ? (
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">{subscription.planName}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant={subscriptionBadgeVariant(subscription.status)}>{subscription.status}</Badge>
+                  {subscription.cancelAtPeriodEnd && <Badge variant="secondary">Cancels at period end</Badge>}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => void handleOpenPortal()} disabled={openingPortal}>
+                  {openingPortal ? '…' : 'Manage billing'}
+                </Button>
+                {!subscription.cancelAtPeriodEnd && (
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+                    onClick={() => setCancelTarget(true)}>Cancel</Button>
+                )}
+              </div>
+            </div>
+            {subscription.currentPeriodEnd && (
+              <p className="text-xs text-muted-foreground">Renews {new Date(subscription.currentPeriodEnd).toLocaleDateString()}</p>
+            )}
+          </div>
+        )
+        : (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Choose a plan</p>
+            {plans.length === 0
+              ? <p className="text-sm text-muted-foreground">No plans are available yet.</p>
+              : plans.map((plan) => (
+                <div key={plan.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">{plan.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatPrice(plan.priceCents, plan.currency)} / {plan.billingPeriod}</p>
+                  </div>
+                  <Button size="sm" onClick={() => void handleSubscribe(plan.id)} disabled={subscribing === plan.id}>
+                    {subscribing === plan.id ? '…' : 'Subscribe'}
+                  </Button>
+                </div>
+              ))
+            }
+          </div>
+        )
+      }
+
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Payment history</p>
+        {payments.length === 0
+          ? <p className="text-sm text-muted-foreground">No payments yet.</p>
+          : (
+            <div className="space-y-1">
+              {payments.map((p) => (
+                <div key={p.id} className="flex items-center justify-between text-sm rounded-lg border p-2">
+                  <code className="text-xs">{p.type}</code>
+                  <div className="flex items-center gap-2">
+                    {p.amountCents !== undefined && <span className="text-xs">{formatPrice(p.amountCents, 'usd')}</span>}
+                    {p.status && <Badge variant={p.status === 'paid' ? 'default' : 'destructive'}>{p.status}</Badge>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        }
+      </div>
+
+      <ConfirmDialog open={cancelTarget} title="Cancel subscription"
+        message="Cancel this subscription at the end of the current billing period?"
+        danger loading={canceling} onConfirm={() => void handleCancel()}
+        onCancel={() => setCancelTarget(false)} />
+    </div>
+  )
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-type Tab = 'orgs' | 'webhooks'
+type Tab = 'orgs' | 'webhooks' | 'billing'
 
 export default function UserOrganizationsPage() {
   const [tab, setTab] = useState<Tab>('orgs')
@@ -450,13 +644,14 @@ export default function UserOrganizationsPage() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'orgs',     label: 'My Organizations' },
     { key: 'webhooks', label: 'Webhooks' },
+    { key: 'billing',  label: 'Billing' },
   ]
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Organizations</h1>
-        <p className="text-sm text-muted-foreground">Switch between your organization memberships and manage webhooks.</p>
+        <p className="text-sm text-muted-foreground">Switch between your organization memberships, manage webhooks, and view billing.</p>
       </div>
 
       <div className="flex gap-1 border-b">
@@ -474,6 +669,7 @@ export default function UserOrganizationsPage() {
 
       {tab === 'orgs'     && <MyOrgsTab />}
       {tab === 'webhooks' && <WebhooksTab />}
+      {tab === 'billing'  && <BillingTab />}
     </div>
   )
 }
