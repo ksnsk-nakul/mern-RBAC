@@ -44,9 +44,20 @@ export default function PlansPage() {
 
   useEffect(() => { void load() }, [load])
 
+  const priceCents = Math.round(parseFloat(priceDollars || '0') * 100)
+  const canCreate = name.trim() !== '' && slug.trim() !== '' && stripePriceId.trim() !== ''
+    && Number.isFinite(priceCents) && priceCents > 0 && /^[a-zA-Z]{3}$/.test(currency.trim())
+
+  function errorMessage(err: unknown, fallback: string): string {
+    if (typeof err === 'object' && err !== null && 'response' in err) {
+      const data = (err as { response?: { data?: { error?: string } } }).response?.data
+      if (data?.error) return data.error
+    }
+    return fallback
+  }
+
   async function handleCreate() {
-    const priceCents = Math.round(parseFloat(priceDollars || '0') * 100)
-    if (!name.trim() || !slug.trim() || !stripePriceId.trim() || !priceCents) return
+    if (!canCreate) return
 
     setCreating(true)
     try {
@@ -54,15 +65,15 @@ export default function PlansPage() {
         name: name.trim(),
         slug: slug.trim(),
         priceCents,
-        currency,
+        currency: currency.trim().toLowerCase(),
         billingPeriod,
         features: features.split('\n').map((f) => f.trim()).filter(Boolean),
         stripePriceId: stripePriceId.trim(),
       })
       setName(''); setSlug(''); setPriceDollars(''); setFeatures(''); setStripePriceId('')
       await load()
-    } catch {
-      alert('Failed to create plan.')
+    } catch (err) {
+      alert(errorMessage(err, 'Failed to create plan.'))
     } finally {
       setCreating(false)
     }
@@ -73,8 +84,8 @@ export default function PlansPage() {
     try {
       await api.patch(`/admin/billing/plans/${plan.id}`, { active: !plan.active })
       await load()
-    } catch {
-      alert('Failed to update plan.')
+    } catch (err) {
+      alert(errorMessage(err, 'Failed to update plan.'))
     } finally {
       setTogglingId(null)
     }
@@ -104,7 +115,7 @@ export default function PlansPage() {
         <textarea value={features} onChange={(e) => setFeatures(e.target.value)}
           placeholder="One feature per line" rows={3}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm" />
-        <Button size="sm" onClick={() => void handleCreate()} disabled={creating}>
+        <Button size="sm" onClick={() => void handleCreate()} disabled={creating || !canCreate}>
           {creating ? '…' : 'Create plan'}
         </Button>
       </div>
