@@ -208,6 +208,22 @@ describe('createCheckoutSession', () => {
       expect.objectContaining({ customer: 'cus_existing', mode: 'subscription' }),
     )
   })
+
+  it('updates planId on the existing subscription when checking out for a different plan', async () => {
+    const newPlanId = new mongoose.Types.ObjectId()
+    mockPlanFindOne.mockResolvedValue({ _id: newPlanId, stripePriceId: 'price_456', active: true })
+    const existingSub = {
+      _id: subId, orgId, planId, status: 'canceled', stripeCustomerId: 'cus_existing',
+      save: vi.fn(),
+    }
+    mockSubFindOne.mockResolvedValue(existingSub)
+    mockCheckoutSessionsCreate.mockResolvedValue({ url: 'https://checkout.stripe.com/session_new' })
+
+    await createCheckoutSession(orgId, String(newPlanId))
+
+    expect(existingSub.planId).toEqual(newPlanId)
+    expect(existingSub.save).toHaveBeenCalled()
+  })
 })
 
 describe('createPortalSession', () => {
@@ -246,6 +262,16 @@ describe('cancelSubscription', () => {
 describe('getBillingOverview', () => {
   it('returns null subscription and active plans when the org has no subscription', async () => {
     mockSubFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) })
+    mockPlanFind.mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) })
+
+    const result = await getBillingOverview(orgId)
+    expect(result.subscription).toBeNull()
+  })
+
+  it('returns null subscription when the existing subscription is canceled, allowing resubscribe', async () => {
+    mockSubFindOne.mockReturnValue({
+      lean: vi.fn().mockResolvedValue({ _id: subId, planId, status: 'canceled', cancelAtPeriodEnd: false }),
+    })
     mockPlanFind.mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }) })
 
     const result = await getBillingOverview(orgId)

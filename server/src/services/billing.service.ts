@@ -113,7 +113,13 @@ async function findOrCreateDraftSubscription(
   planId: mongoose.Types.ObjectId,
 ) {
   const existing = await Subscription.findOne({ orgId })
-  if (existing) return existing
+  if (existing) {
+    if (!existing.planId.equals(planId)) {
+      existing.planId = planId
+      await existing.save()
+    }
+    return existing
+  }
   return Subscription.create({ orgId, planId, status: 'incomplete', cancelAtPeriodEnd: false })
 }
 
@@ -191,7 +197,7 @@ export async function getBillingOverview(orgId: mongoose.Types.ObjectId): Promis
     listPlans({ activeOnly: true }),
   ])
 
-  if (!sub || sub.status === 'incomplete') {
+  if (!sub || sub.status === 'incomplete' || sub.status === 'canceled') {
     return { subscription: null, plans }
   }
 
