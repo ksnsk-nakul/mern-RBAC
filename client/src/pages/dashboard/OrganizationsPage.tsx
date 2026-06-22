@@ -491,6 +491,18 @@ function BillingTab() {
   const [openingPortal, setOpeningPortal] = useState(false)
   const [canceling,    setCanceling]    = useState(false)
   const [cancelTarget, setCancelTarget] = useState(false)
+  const [checkoutResult, setCheckoutResult] = useState<'success' | 'canceled' | null>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const billing = params.get('billing')
+    if (billing === 'success' || billing === 'canceled') {
+      setCheckoutResult(billing)
+      params.delete('billing')
+      const nextSearch = params.toString()
+      window.history.replaceState(null, '', `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`)
+    }
+  }, [])
 
   const load = useCallback(async () => {
     if (!orgId) return
@@ -515,7 +527,10 @@ function BillingTab() {
     setSubscribing(planId)
     try {
       const { data } = await api.post(`/orgs/${orgId}/billing/checkout`, { planId })
+      if (!data?.checkoutUrl) throw new Error('No checkout URL returned')
       window.location.href = data.checkoutUrl
+      // Fallback in case the browser blocks/delays the navigation — don't leave the button stuck forever.
+      setTimeout(() => setSubscribing(null), 8000)
     } catch {
       alert('Failed to start checkout.')
       setSubscribing(null)
@@ -527,6 +542,7 @@ function BillingTab() {
     setOpeningPortal(true)
     try {
       const { data } = await api.post(`/orgs/${orgId}/billing/portal`)
+      if (!data?.portalUrl) throw new Error('No portal URL returned')
       window.location.href = data.portalUrl
     } catch {
       alert('Failed to open billing portal.')
@@ -557,8 +573,23 @@ function BillingTab() {
     return <p className="text-sm text-muted-foreground">Loading…</p>
   }
 
+  const paymentCurrency = plans.find((p) => p.id === subscription?.planId)?.currency ?? 'usd'
+
   return (
     <div className="space-y-6 max-w-2xl">
+      {checkoutResult === 'success' && (
+        <div className="rounded-lg border border-green-500 bg-green-50 dark:bg-green-950 p-3 flex items-center justify-between">
+          <p className="text-sm text-green-800 dark:text-green-200">Subscription activated successfully.</p>
+          <Button size="sm" variant="ghost" onClick={() => setCheckoutResult(null)}>Dismiss</Button>
+        </div>
+      )}
+      {checkoutResult === 'canceled' && (
+        <div className="rounded-lg border bg-muted/30 p-3 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">Checkout was canceled — no changes were made.</p>
+          <Button size="sm" variant="ghost" onClick={() => setCheckoutResult(null)}>Dismiss</Button>
+        </div>
+      )}
+
       {subscription
         ? (
           <div className="rounded-lg border p-4 space-y-3">
@@ -616,7 +647,7 @@ function BillingTab() {
                 <div key={p.id} className="flex items-center justify-between text-sm rounded-lg border p-2">
                   <code className="text-xs">{p.type}</code>
                   <div className="flex items-center gap-2">
-                    {p.amountCents !== undefined && <span className="text-xs">{formatPrice(p.amountCents, 'usd')}</span>}
+                    {p.amountCents !== undefined && <span className="text-xs">{formatPrice(p.amountCents, paymentCurrency)}</span>}
                     {p.status && <Badge variant={p.status === 'paid' ? 'default' : 'destructive'}>{p.status}</Badge>}
                   </div>
                 </div>
@@ -639,7 +670,9 @@ function BillingTab() {
 type Tab = 'orgs' | 'webhooks' | 'billing'
 
 export default function UserOrganizationsPage() {
-  const [tab, setTab] = useState<Tab>('orgs')
+  const [tab, setTab] = useState<Tab>(() => (
+    new URLSearchParams(window.location.search).get('billing') ? 'billing' : 'orgs'
+  ))
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'orgs',     label: 'My Organizations' },
