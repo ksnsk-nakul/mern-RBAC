@@ -15,6 +15,7 @@ import { organizationsAdminRouter } from './admin/organizations.js'
 import { billingAdminRouter }       from './admin/billing.js'
 import { orgsRouter }               from './organizations.js'
 import { webhooksRouter }           from './webhooks.js'
+import { billingRouter }            from './billing.js'
 import { mfaRouter }                from './mfa.js'
 import { trustedDevicesRouter }    from './trustedDevices.js'
 import { apiTokensRouter }         from './apiTokens.js'
@@ -44,3 +45,4 @@ router.use('/admin/logs',               logsAdminRouter)
 router.use('/admin/orgs',              organizationsAdminRouter)
 router.use('/admin/billing',           billingAdminRouter)
 router.use('/orgs/:orgId/webhooks',    webhooksRouter)
+router.use('/orgs/:orgId/billing',     billingRouter)
