@@ -29,6 +29,7 @@ export const CORE_PERMISSIONS = [
   { name: 'Manage Organizations', slug: 'orgs.manage', mainGroup: 'Organizations' },
   { name: 'View Billing',          slug: 'billing.view', mainGroup: 'Billing' },
   { name: 'Manage Billing',        slug: 'billing.manage', mainGroup: 'Billing' },
+  { name: 'Manage Approvals',      slug: 'approvals.manage', mainGroup: 'Approvals' },
 ] as const
 
 export const CORE_SETTINGS = [
