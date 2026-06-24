@@ -4,6 +4,7 @@ import { authRouter }              from './auth.js'
 import { googleAuthRouter }        from './googleAuth.js'
 import { usersAdminRouter }        from './admin/users.js'
 import { rolesAdminRouter }        from './admin/roles.js'
+import { roleTemplatesAdminRouter } from './admin/roleTemplates.js'
 import { permissionsAdminRouter }  from './admin/permissions.js'
 import { userRolesAdminRouter }    from './admin/userRoles.js'
 import { statsAdminRouter }        from './admin/stats.js'
@@ -35,6 +36,7 @@ router.use('/auth/orgs',      orgsRouter)
 
 router.use('/admin/users',               usersAdminRouter)
 router.use('/admin/users/:userId/roles', userRolesAdminRouter)
+router.use('/admin/roles/templates',     roleTemplatesAdminRouter)
 router.use('/admin/roles',               rolesAdminRouter)
 router.use('/admin/permissions',         permissionsAdminRouter)
 router.use('/admin/stats',               statsAdminRouter)
