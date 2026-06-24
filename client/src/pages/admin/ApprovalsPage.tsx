@@ -28,6 +28,7 @@ function DecisionDialog({ open, title, onConfirm, onCancel, loading }: {
   open: boolean; title: string; onConfirm: (note: string) => void; onCancel: () => void; loading: boolean
 }) {
   const [note, setNote] = useState('')
+  useEffect(() => { if (open) setNote('') }, [open])
 
   if (!open) return null
 
