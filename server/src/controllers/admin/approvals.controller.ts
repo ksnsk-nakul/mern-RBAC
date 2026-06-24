@@ -12,7 +12,10 @@ const decisionSchema = z.object({
 })
 
 export const list = asyncHandler(async (req: Request, res: Response) => {
-  const status = req.query.status as 'pending' | 'approved' | 'rejected' | undefined
+  const rawStatus = req.query.status as string | undefined
+  const status = rawStatus === 'all' || !rawStatus
+    ? undefined
+    : (rawStatus as 'pending' | 'approved' | 'rejected')
   const page   = Number(req.query.page)  || 1
   const limit  = Math.min(Number(req.query.limit) || 20, 100)
 
