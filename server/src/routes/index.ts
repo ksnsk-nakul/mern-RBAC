@@ -6,6 +6,7 @@ import { usersAdminRouter }        from './admin/users.js'
 import { rolesAdminRouter }        from './admin/roles.js'
 import { roleTemplatesAdminRouter } from './admin/roleTemplates.js'
 import { approvalsAdminRouter }     from './admin/approvals.js'
+import { approvalsRouter }           from './approvals.js'
 import { permissionsAdminRouter }  from './admin/permissions.js'
 import { userRolesAdminRouter }    from './admin/userRoles.js'
 import { statsAdminRouter }        from './admin/stats.js'
@@ -34,6 +35,7 @@ router.use('/auth/mfa',     mfaRouter)
 router.use('/auth/devices',     trustedDevicesRouter)
 router.use('/auth/api-tokens', apiTokensRouter)
 router.use('/auth/orgs',      orgsRouter)
+router.use('/approvals', approvalsRouter)
 
 router.use('/admin/users',               usersAdminRouter)
 router.use('/admin/users/:userId/roles', userRolesAdminRouter)
