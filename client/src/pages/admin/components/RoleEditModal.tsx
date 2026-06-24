@@ -21,6 +21,7 @@ interface Props {
   open:           boolean
   initialData?:   RoleFormData & { id?: string; slug?: string; isProtected?: boolean }
   allPermissions: Permission[]
+  templates?:     { id: string; name: string; permissionIds: string[] }[]
   onSave:         (data: RoleFormData & { slug?: string }) => Promise<void>
   onClose:        () => void
   isCreate?:      boolean
@@ -35,7 +36,7 @@ function groupByMainGroup(perms: Permission[]): Map<string, Permission[]> {
   return map
 }
 
-export function RoleEditModal({ open, initialData, allPermissions, onSave, onClose, isCreate }: Props) {
+export function RoleEditModal({ open, initialData, allPermissions, templates, onSave, onClose, isCreate }: Props) {
   const [name,               setName]               = useState(initialData?.name ?? '')
   const [slug,               setSlug]               = useState(initialData?.slug ?? '')
   const [route,              setRoute]              = useState(initialData?.route ?? '')
@@ -64,6 +65,11 @@ export function RoleEditModal({ open, initialData, allPermissions, onSave, onClo
     setPermissionIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
+  }
+
+  function applyTemplate(templateId: string) {
+    const template = templates?.find((t) => t.id === templateId)
+    if (template) setPermissionIds(template.permissionIds)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -126,6 +132,22 @@ export function RoleEditModal({ open, initialData, allPermissions, onSave, onClo
               </label>
             ))}
           </div>
+
+          {templates && templates.length > 0 && (
+            <div className="space-y-1">
+              <Label>Use template</Label>
+              <select
+                defaultValue=""
+                onChange={(e) => { if (e.target.value) applyTemplate(e.target.value) }}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">— Select a template to pre-fill permissions —</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.permissionIds.length} permissions)</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <Label className="mb-2 block">Permissions</Label>

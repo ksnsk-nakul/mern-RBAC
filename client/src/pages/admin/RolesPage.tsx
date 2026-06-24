@@ -3,11 +3,16 @@ import api from '@/lib/axios'
 import { DataTable, type Column } from '@/components/shared/DataTable'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { RoleEditModal } from './components/RoleEditModal'
 
 interface Permission {
   id: string; slug: string; name: string; mainGroup: string
+}
+
+interface RoleTemplateItem {
+  id: string; name: string; description?: string; permissionIds: string[]
 }
 
 interface RoleRow {
@@ -64,16 +69,23 @@ export default function RolesPage() {
   const [editTarget,   setEditTarget]   = useState<RoleRow | null>(null)
   const [creating,     setCreating]     = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<RoleRow | null>(null)
+  const [templates,            setTemplates]            = useState<RoleTemplateItem[]>([])
+  const [newTemplateName,      setNewTemplateName]      = useState('')
+  const [newTemplatePerms,     setNewTemplatePerms]     = useState<string[]>([])
+  const [creatingTemplate,     setCreatingTemplate]     = useState(false)
+  const [deleteTemplateTarget, setDeleteTemplateTarget] = useState<RoleTemplateItem | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [rolesRes, permsRes] = await Promise.all([
+      const [rolesRes, permsRes, templatesRes] = await Promise.all([
         api.get('/admin/roles'),
         api.get('/admin/permissions'),
+        api.get('/admin/roles/templates'),
       ])
       setRoles(rolesRes.data.roles)
       setAllPerms(permsRes.data.permissions)
+      setTemplates(templatesRes.data.templates)
     } finally {
       setLoading(false)
     }
@@ -94,6 +106,36 @@ export default function RolesPage() {
     await api.delete(`/admin/roles/${role.id}`)
     setDeleteTarget(null)
     void load()
+  }
+
+  function toggleTemplatePerm(id: string) {
+    setNewTemplatePerms((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  async function handleCreateTemplate() {
+    if (!newTemplateName.trim() || newTemplatePerms.length === 0) return
+    setCreatingTemplate(true)
+    try {
+      await api.post('/admin/roles/templates', { name: newTemplateName.trim(), permissionIds: newTemplatePerms })
+      setNewTemplateName('')
+      setNewTemplatePerms([])
+      await load()
+    } catch {
+      alert('Failed to create template.')
+    } finally {
+      setCreatingTemplate(false)
+    }
+  }
+
+  async function handleDeleteTemplate(template: RoleTemplateItem) {
+    try {
+      await api.delete(`/admin/roles/templates/${template.id}`)
+      setTemplates((prev) => prev.filter((t) => t.id !== template.id))
+    } catch {
+      alert('Failed to delete template.')
+    } finally {
+      setDeleteTemplateTarget(null)
+    }
   }
 
   return (
@@ -141,6 +183,7 @@ export default function RolesPage() {
           permissionIds:      editTarget.permissions.map((p) => p.id),
         } : undefined}
         allPermissions={allPerms}
+        templates={templates}
         onSave={handleSave}
         onClose={() => setEditTarget(null)}
       />
@@ -148,6 +191,7 @@ export default function RolesPage() {
       <RoleEditModal
         open={creating}
         allPermissions={allPerms}
+        templates={templates}
         onSave={handleSave}
         onClose={() => setCreating(false)}
         isCreate
@@ -160,6 +204,56 @@ export default function RolesPage() {
         danger
         onConfirm={() => deleteTarget && void handleDelete(deleteTarget)}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <div className="rounded-lg border p-4 space-y-3 mt-6">
+        <div>
+          <h2 className="text-lg font-semibold">Role Templates</h2>
+          <p className="text-sm text-muted-foreground">Predefined permission sets for quick role creation.</p>
+        </div>
+
+        {templates.length === 0
+          ? <p className="text-sm text-muted-foreground">No templates yet.</p>
+          : (
+            <div className="space-y-1">
+              {templates.map((t) => (
+                <div key={t.id} className="flex items-center justify-between rounded-lg border p-2">
+                  <div>
+                    <p className="text-sm font-medium">{t.name}</p>
+                    <p className="text-xs text-muted-foreground">{t.permissionIds.length} permissions</p>
+                  </div>
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+                    onClick={() => setDeleteTemplateTarget(t)}>Delete</Button>
+                </div>
+              ))}
+            </div>
+          )
+        }
+
+        <div className="space-y-2 border-t pt-3">
+          <p className="text-sm font-medium">Create template</p>
+          <Input value={newTemplateName} onChange={(e) => setNewTemplateName(e.target.value)} placeholder="Template name" className="max-w-sm" />
+          <div className="max-h-48 overflow-y-auto rounded-lg border p-2 grid grid-cols-2 gap-1">
+            {allPerms.map((p) => (
+              <label key={p.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                <input type="checkbox" checked={newTemplatePerms.includes(p.id)} onChange={() => toggleTemplatePerm(p.id)} className="rounded" />
+                {p.name}
+              </label>
+            ))}
+          </div>
+          <Button size="sm" onClick={() => void handleCreateTemplate()} disabled={creatingTemplate || !newTemplateName.trim() || newTemplatePerms.length === 0}>
+            {creatingTemplate ? '…' : 'Create template'}
+          </Button>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        open={!!deleteTemplateTarget}
+        title="Delete role template"
+        message={`Delete the "${deleteTemplateTarget?.name}" template? This does not affect roles already created from it.`}
+        danger
+        onConfirm={() => deleteTemplateTarget && void handleDeleteTemplate(deleteTemplateTarget)}
+        onCancel={() => setDeleteTemplateTarget(null)}
       />
     </div>
   )

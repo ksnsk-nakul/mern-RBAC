@@ -32,6 +32,7 @@ const adminNav: NavItem[] = [
   { label: 'Security',       to: '/admin/security',         permission: 'roles.manage' },
   { label: 'Organizations', to: '/admin/organizations',    permission: 'orgs.view' },
   { label: 'Plans', to: '/admin/billing/plans', permission: 'billing.view' },
+  { label: 'Approvals', to: '/admin/approvals', permission: 'approvals.manage' },
 ]
 
 const subadminNav: NavItem[] = [
