@@ -94,6 +94,8 @@ describe('listMyRequests', () => {
 
     const result = await listMyRequests(userId)
     expect(result).toHaveLength(1)
+    expect(result[0]!.id).toBe(String(requestId))
+    expect(result[0]!.status).toBe('pending')
   })
 })
 
@@ -111,6 +113,44 @@ describe('listRequests', () => {
     await listRequests({ status: 'pending', page: 1, limit: 20 })
 
     expect(mockFind).toHaveBeenCalledWith({ status: 'pending' })
+  })
+
+  it('returns the correct pagination shape', async () => {
+    mockFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        skip: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue([
+              { _id: requestId, requestType: 'role_assignment', requestedBy: userId, targetRoleId: roleId, status: 'pending', createdAt: new Date() },
+            ]),
+          }),
+        }),
+      }),
+    })
+    mockCountDocuments.mockResolvedValue(1)
+
+    const result = await listRequests({ status: 'pending', page: 1, limit: 20 })
+
+    expect(result.total).toBe(1)
+    expect(result.pages).toBe(1)
+    expect(result.requests).toHaveLength(1)
+    expect(result.requests[0]!.id).toBe(String(requestId))
+  })
+
+  it('returns pages: 1 when there are no results', async () => {
+    mockFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        skip: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+        }),
+      }),
+    })
+    mockCountDocuments.mockResolvedValue(0)
+
+    const result = await listRequests({ page: 1, limit: 20 })
+
+    expect(result.total).toBe(0)
+    expect(result.pages).toBe(1)
   })
 })
 

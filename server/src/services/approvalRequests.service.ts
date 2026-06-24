@@ -63,6 +63,11 @@ export async function submitRequest(input: SubmitRequestInput, requesterId: mong
     throw new AppError('targetPermissionId is required for permission_grant requests', 400)
   }
 
+  if (!mongoose.Types.ObjectId.isValid(input.targetRoleId))
+    throw new AppError('Invalid targetRoleId', 400)
+  if (input.targetPermissionId && !mongoose.Types.ObjectId.isValid(input.targetPermissionId))
+    throw new AppError('Invalid targetPermissionId', 400)
+
   const doc = await ApprovalRequest.create({
     requestType:        input.requestType,
     requestedBy:        requesterId,
@@ -103,7 +108,7 @@ export async function listRequests(opts: {
   return {
     requests: (requests as unknown as ApprovalRequestLean[]).map(toItem),
     total,
-    pages: Math.ceil(total / limit),
+    pages: Math.max(1, Math.ceil(total / limit)),
   }
 }
 
@@ -120,6 +125,7 @@ export async function approveRequest(
   if (request.requestType === 'role_assignment') {
     await UserRolesService.assignRole(String(request.targetUserId), String(request.targetRoleId), approverId)
   } else {
+    if (!request.targetPermissionId) throw new AppError('Approval request is missing targetPermissionId', 500)
     const role = await RolesService.getRole(String(request.targetRoleId))
     const existingIds = role.permissions.map((p) => p.id)
     const newPermissionId = String(request.targetPermissionId)
@@ -128,6 +134,7 @@ export async function approveRequest(
   }
 
   request.status       = 'approved'
+  // approvedBy stores the decision actor for both approve and reject outcomes
   request.approvedBy   = approverId
   request.decisionNote = decisionNote
   request.decidedAt    = new Date()
@@ -145,6 +152,7 @@ export async function rejectRequest(
   if (request.status !== 'pending') throw new AppError('Only pending requests can be rejected', 409)
 
   request.status       = 'rejected'
+  // approvedBy stores the decision actor for both approve and reject outcomes
   request.approvedBy   = approverId
   request.decisionNote = decisionNote
   request.decidedAt    = new Date()
