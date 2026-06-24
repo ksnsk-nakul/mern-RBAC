@@ -17,6 +17,7 @@ const userNav: NavItem[] = [
   { label: 'AI Assistant', to: '/dashboard/ai' },
   { label: 'Security',       to: '/dashboard/security' },
   { label: 'Organizations', to: '/dashboard/organizations' },
+  { label: 'My Requests', to: '/dashboard/approvals' },
 ]
 
 const adminNav: NavItem[] = [
