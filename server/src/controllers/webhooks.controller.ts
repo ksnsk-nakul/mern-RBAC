@@ -107,7 +107,16 @@ export const listDeliveries = asyncHandler(async (req: Request, res: Response) =
 })
 
 export const retryDelivery = asyncHandler(async (req: Request, res: Response) => {
-  const orgId = new mongoose.Types.ObjectId(req.params.orgId as string)
-  await WebhooksService.retryDeliveryManually(orgId, req.params.deliveryId as string)
+  const auth   = req.user as unknown as AuthUser
+  const orgId  = new mongoose.Types.ObjectId(req.params.orgId as string)
+  const deliveryId = req.params.deliveryId as string
+  await WebhooksService.retryDeliveryManually(orgId, deliveryId)
+  ActivityLogService.appendActivity({
+    action:     'webhook_delivery.retried',
+    actorId:    auth.userId,
+    targetType: 'WebhookDelivery',
+    targetId:   deliveryId,
+    orgId,
+  }).catch(() => {})
   res.json({ retried: true })
 })
