@@ -17,14 +17,17 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   if (!fromAddress) return
 
   // Try SendGrid first
+  let sendgridKey: string | null = null
   try {
-    const apiKey = await revealSecret('sendgrid.api_key')
+    sendgridKey = await revealSecret('sendgrid.api_key')
+  } catch {
+    // SendGrid not configured — fall through to SMTP
+  }
+  if (sendgridKey) {
     const sgMail = (await import('@sendgrid/mail')).default
-    sgMail.setApiKey(apiKey)
+    sgMail.setApiKey(sendgridKey)
     await sgMail.send({ to, from: { name: fromName, email: fromAddress }, subject, html })
     return
-  } catch {
-    // fall through to SMTP
   }
 
   // Fall back to SMTP

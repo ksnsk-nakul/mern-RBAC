@@ -32,11 +32,14 @@ export async function notifyNewMessage(
   actorUserId: mongoose.Types.ObjectId,
   isInternal: boolean,
 ): Promise<void> {
+  if (isInternal) return  // internal notes are never emailed
+
   const idSuffix = String(ticket._id).slice(-8)
   const subjectLine = `[Ticket #${idSuffix}] ${ticket.subject}`
-  const isAdminReply = isInternal || actorUserId.toString() !== ticket.requestedBy.toString()
+  const isUserReply = actorUserId.toString() === ticket.requestedBy.toString()
 
-  if (isAdminReply) {
+  if (!isUserReply) {
+    // admin replied — notify the ticket requester
     const email = await getUserEmail(ticket.requestedBy)
     if (email) {
       await sendEmail(
@@ -46,6 +49,7 @@ export async function notifyNewMessage(
       )
     }
   } else {
+    // user replied — notify assignedTo or all ticket managers
     if (ticket.assignedTo) {
       const email = await getUserEmail(ticket.assignedTo)
       if (email) {
