@@ -200,24 +200,13 @@ async function fetchMessages(ticketId: mongoose.Types.ObjectId, includeInternal:
   const filter: Record<string, unknown> = { ticketId }
   if (!includeInternal) filter.isInternal = false
   const messages = await TicketMessage.find(filter).sort({ createdAt: 1 }).lean()
-  const all = (messages as unknown as MessageLean[]).map(toMessageItem)
-  // In-memory guard: filter out internal messages when includeInternal is false
-  return includeInternal ? all : all.filter((m) => !m.isInternal)
+  return (messages as unknown as MessageLean[]).map(toMessageItem)
 }
 
-async function findTicketLean(id: string): Promise<TicketLean | null> {
-  const query = SupportTicket.findById(id)
-  // Support both: mock returning plain object directly (mockResolvedValue) and
-  // mock returning a query with .lean() (mockReturnValue with { lean: fn })
-  if (typeof (query as unknown as { lean?: unknown }).lean === 'function') {
-    return ((query as unknown as { lean: () => Promise<TicketLean | null> }).lean()) as Promise<TicketLean | null>
-  }
-  return (query as unknown as Promise<TicketLean | null>)
-}
 
 export async function getAdminTicket(id: string): Promise<TicketWithMessages | null> {
   if (!mongoose.Types.ObjectId.isValid(id)) return null
-  const ticket = await findTicketLean(id)
+  const ticket = await SupportTicket.findById(id).lean()
   if (!ticket) return null
   const t = ticket as TicketLean
   const messages = await fetchMessages(t._id, true)
@@ -229,7 +218,7 @@ export async function getUserTicket(
   requestedBy: mongoose.Types.ObjectId,
 ): Promise<TicketWithMessages | null> {
   if (!mongoose.Types.ObjectId.isValid(id)) return null
-  const ticket = await findTicketLean(id)
+  const ticket = await SupportTicket.findById(id).lean()
   if (!ticket) return null
   const t = ticket as TicketLean
   if (t.requestedBy.toString() !== requestedBy.toString()) throw new ForbiddenError('Access denied')

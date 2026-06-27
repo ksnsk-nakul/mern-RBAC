@@ -172,7 +172,7 @@ describe('listMyTickets', () => {
 
 describe('getAdminTicket', () => {
   it('returns null when ticket not found', async () => {
-    mockTicketFindById.mockResolvedValue(null)
+    mockTicketFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) })
     const result = await getAdminTicket(String(ticketId))
     expect(result).toBeNull()
   })
@@ -197,10 +197,12 @@ describe('getUserTicket', () => {
 
   it('filters out internal messages for the ticket owner', async () => {
     mockTicketFindById.mockReturnValue({ lean: vi.fn().mockResolvedValue(sampleTicket) })
-    const internalMsg = { ...sampleMessage, isInternal: true }
-    mockMsgFind.mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([sampleMessage, internalMsg]) }) })
+    mockMsgFind.mockReturnValue({ sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([sampleMessage]) }) })
 
     const result = await getUserTicket(String(ticketId), userId)
+    expect(mockMsgFind).toHaveBeenCalledWith(
+      expect.objectContaining({ isInternal: false }),
+    )
     expect(result!.messages).toHaveLength(1)
     expect(result!.messages[0]!.isInternal).toBe(false)
   })
