@@ -16,6 +16,7 @@ import { secretsAdminRouter }       from './admin/secrets.js'
 import { logsAdminRouter }          from './admin/logs.js'
 import { organizationsAdminRouter } from './admin/organizations.js'
 import { billingAdminRouter }       from './admin/billing.js'
+import { ticketsAdminRouter }       from './admin/tickets.js'
 import { orgsRouter }               from './organizations.js'
 import { webhooksRouter }           from './webhooks.js'
 import { billingRouter }            from './billing.js'
@@ -50,5 +51,6 @@ router.use('/admin/secrets',             secretsAdminRouter)
 router.use('/admin/logs',               logsAdminRouter)
 router.use('/admin/orgs',              organizationsAdminRouter)
 router.use('/admin/billing',           billingAdminRouter)
+router.use('/admin/tickets',           ticketsAdminRouter)
 router.use('/orgs/:orgId/webhooks',    webhooksRouter)
 router.use('/orgs/:orgId/billing',     billingRouter)
