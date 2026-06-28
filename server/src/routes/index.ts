@@ -18,6 +18,7 @@ import { organizationsAdminRouter } from './admin/organizations.js'
 import { billingAdminRouter }       from './admin/billing.js'
 import { ticketsAdminRouter }       from './admin/tickets.js'
 import { ticketsRouter }            from './tickets.js'
+import { tmsRouter }                from './tms.js'
 import { orgsRouter }               from './organizations.js'
 import { webhooksRouter }           from './webhooks.js'
 import { billingRouter }            from './billing.js'
@@ -54,5 +55,6 @@ router.use('/admin/orgs',              organizationsAdminRouter)
 router.use('/admin/billing',           billingAdminRouter)
 router.use('/admin/tickets',           ticketsAdminRouter)
 router.use('/tickets', ticketsRouter)
+router.use('/tms', tmsRouter)
 router.use('/orgs/:orgId/webhooks',    webhooksRouter)
 router.use('/orgs/:orgId/billing',     billingRouter)
