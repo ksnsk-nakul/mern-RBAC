@@ -17,6 +17,7 @@ import AdminOrganizationsPage from '@/pages/admin/OrganizationsPage'
 import PlansPage              from '@/pages/admin/PlansPage'
 import AdminApprovalsPage      from '@/pages/admin/ApprovalsPage'
 import SupportTicketsPage     from '@/pages/admin/SupportTicketsPage'
+import AdminTicketDetailPage  from '@/pages/admin/TicketDetailPage'
 import SubAdminDashboard      from '@/pages/subadmin/SubAdminDashboard'
 import UserSecurityPage       from '@/pages/dashboard/SecurityPage'
 import UserOrganizationsPage  from '@/pages/dashboard/OrganizationsPage'
@@ -46,6 +47,7 @@ export function AppRouter() {
         <Route path="/admin/permissions"            element={<AuthGuard permission="permissions.view"><PermissionsPage /></AuthGuard>} />
         <Route path="/admin/logs"                   element={<AuthGuard permission="logs.view"><ActivityLogsPage /></AuthGuard>} />
         <Route path="/admin/tickets"                element={<AuthGuard permission="tickets.view"><SupportTicketsPage /></AuthGuard>} />
+        <Route path="/admin/tickets/:id"            element={<AuthGuard permission="tickets.view"><AdminTicketDetailPage /></AuthGuard>} />
         <Route path="/admin/settings"               element={<AuthGuard permission="settings.view"><SettingsPage /></AuthGuard>} />
         <Route path="/admin/settings/login-pages"   element={<AuthGuard permission="settings.manage"><LoginPagesPage /></AuthGuard>} />
         <Route path="/admin/settings/secrets"       element={<AuthGuard><SecretsPage /></AuthGuard>} />
