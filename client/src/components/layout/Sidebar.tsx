@@ -18,6 +18,7 @@ const userNav: NavItem[] = [
   { label: 'Security',       to: '/dashboard/security' },
   { label: 'Organizations', to: '/dashboard/organizations' },
   { label: 'My Requests', to: '/dashboard/approvals' },
+  { label: 'My Tickets', to: '/dashboard/tickets' },
 ]
 
 const adminNav: NavItem[] = [

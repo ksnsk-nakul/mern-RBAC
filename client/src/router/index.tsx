@@ -22,6 +22,8 @@ import SubAdminDashboard      from '@/pages/subadmin/SubAdminDashboard'
 import UserSecurityPage       from '@/pages/dashboard/SecurityPage'
 import UserOrganizationsPage  from '@/pages/dashboard/OrganizationsPage'
 import UserApprovalsPage      from '@/pages/dashboard/ApprovalsPage'
+import UserTicketsPage        from '@/pages/dashboard/TicketsPage'
+import UserTicketDetailPage   from '@/pages/dashboard/TicketDetailPage'
 
 export function AppRouter() {
   return (
@@ -37,6 +39,8 @@ export function AppRouter() {
         <Route path="/dashboard/security"       element={<AuthGuard><UserSecurityPage /></AuthGuard>} />
         <Route path="/dashboard/organizations"  element={<AuthGuard><UserOrganizationsPage /></AuthGuard>} />
         <Route path="/dashboard/approvals" element={<AuthGuard><UserApprovalsPage /></AuthGuard>} />
+        <Route path="/dashboard/tickets"     element={<AuthGuard><UserTicketsPage /></AuthGuard>} />
+        <Route path="/dashboard/tickets/:id" element={<AuthGuard><UserTicketDetailPage /></AuthGuard>} />
       </Route>
 
       {/* Admin */}
