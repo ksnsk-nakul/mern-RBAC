@@ -34,7 +34,7 @@ const adminNav: NavItem[] = [
   { label: 'Security',       to: '/admin/security',         permission: 'roles.manage' },
   { label: 'Organizations', to: '/admin/organizations',    permission: 'orgs.view' },
   { label: 'Plans',     to: '/admin/billing/plans', permission: 'billing.view' },
-  { label: 'Products',  to: '/admin/products',      permission: 'billing.view' },
+  { label: 'Products',  to: '/admin/products',      permission: 'tms.products.manage' },
   { label: 'Approvals', to: '/admin/approvals',     permission: 'approvals.manage' },
 ]
 
