@@ -16,6 +16,7 @@ import ActivityLogsPage       from '@/pages/admin/ActivityLogsPage'
 import AdminOrganizationsPage from '@/pages/admin/OrganizationsPage'
 import PlansPage              from '@/pages/admin/PlansPage'
 import AdminApprovalsPage      from '@/pages/admin/ApprovalsPage'
+import ProductsPage           from '@/pages/admin/ProductsPage'
 import SupportTicketsPage     from '@/pages/admin/SupportTicketsPage'
 import AdminTicketDetailPage  from '@/pages/admin/TicketDetailPage'
 import SubAdminDashboard      from '@/pages/subadmin/SubAdminDashboard'
@@ -69,6 +70,7 @@ export function AppRouter() {
         <Route path="/admin/organizations"          element={<AuthGuard permission="orgs.view"><AdminOrganizationsPage /></AuthGuard>} />
         <Route path="/admin/billing/plans"          element={<AuthGuard permission="billing.view"><PlansPage /></AuthGuard>} />
         <Route path="/admin/approvals" element={<AuthGuard permission="approvals.manage"><AdminApprovalsPage /></AuthGuard>} />
+        <Route path="/admin/products"  element={<AuthGuard permission="billing.view"><ProductsPage /></AuthGuard>} />
       </Route>
 
       {/* Sub-admin */}
