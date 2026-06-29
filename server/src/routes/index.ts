@@ -25,6 +25,8 @@ import { billingRouter }            from './billing.js'
 import { mfaRouter }                from './mfa.js'
 import { trustedDevicesRouter }    from './trustedDevices.js'
 import { apiTokensRouter }         from './apiTokens.js'
+import { productsRouter }           from './products.js'
+import { licensesRouter }           from './licenses.js'
 
 export const router = Router()
 
@@ -56,5 +58,7 @@ router.use('/admin/billing',           billingAdminRouter)
 router.use('/admin/tickets',           ticketsAdminRouter)
 router.use('/tickets', ticketsRouter)
 router.use('/tms', tmsRouter)
+router.use('/products', productsRouter)
+router.use('/licenses', licensesRouter)
 router.use('/orgs/:orgId/webhooks',    webhooksRouter)
 router.use('/orgs/:orgId/billing',     billingRouter)
