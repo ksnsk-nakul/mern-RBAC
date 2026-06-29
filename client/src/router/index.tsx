@@ -30,6 +30,7 @@ import ProjectsPage           from '@/pages/dashboard/ProjectsPage'
 import TasksPage              from '@/pages/dashboard/TasksPage'
 import ProjectDetailPage      from '@/pages/dashboard/ProjectDetailPage'
 import TaskDetailPage         from '@/pages/dashboard/TaskDetailPage'
+import ChatPage               from '@/pages/dashboard/ChatPage'
 
 export function AppRouter() {
   return (
@@ -52,6 +53,7 @@ export function AppRouter() {
         <Route path="/dashboard/projects/:id" element={<AuthGuard><ProjectDetailPage /></AuthGuard>} />
         <Route path="/dashboard/tasks"    element={<AuthGuard><TasksPage /></AuthGuard>} />
         <Route path="/dashboard/tasks/:id"    element={<AuthGuard><TaskDetailPage /></AuthGuard>} />
+        <Route path="/dashboard/chat" element={<AuthGuard><ChatPage /></AuthGuard>} />
       </Route>
 
       {/* Admin */}
