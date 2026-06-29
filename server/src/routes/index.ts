@@ -27,6 +27,7 @@ import { trustedDevicesRouter }    from './trustedDevices.js'
 import { apiTokensRouter }         from './apiTokens.js'
 import { productsRouter }           from './products.js'
 import { licensesRouter }           from './licenses.js'
+import { aiRouter }                 from './ai.js'
 
 export const router = Router()
 
@@ -60,5 +61,6 @@ router.use('/tickets', ticketsRouter)
 router.use('/tms', tmsRouter)
 router.use('/products', productsRouter)
 router.use('/licenses', licensesRouter)
+router.use('/ai', aiRouter)
 router.use('/orgs/:orgId/webhooks',    webhooksRouter)
 router.use('/orgs/:orgId/billing',     billingRouter)
